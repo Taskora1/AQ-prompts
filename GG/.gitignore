@@ -1,0 +1,27 @@
+# Dependencies and build output
+node_modules/
+.next/
+dist/
+
+# Local deployment metadata
+.vercel/
+tmp/
+
+# Environment files may contain credentials. Keep examples tracked.
+aq-preview.env
+aq-preview-deployment.env
+.env
+.env.*
+!.env.example
+!.env.sandbox.example
+
+# Local logs and debug artifacts
+*.log
+*.err.log
+
+# Local audit screenshots and machine-specific result exports
+/.clarity-*.png
+/final-*-results.json
+
+.vercel
+.env*

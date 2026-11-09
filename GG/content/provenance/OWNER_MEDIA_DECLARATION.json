@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-26",
+  "declaredBy": "AQPrompts website owner",
+  "scope": [
+    "portrait images",
+    "article images",
+    "prompt-card images",
+    "homepage demonstration images",
+    "other demonstration images"
+  ],
+  "declaration": {
+    "mediaOrigin": "Assets in scope are either fully AI-generated or AI-edited from owner-provided or permitted reference photographs.",
+    "unlicensedStockIntent": "The website does not intentionally use unlicensed stock photographs.",
+    "referenceImagePermission": "owner-confirmed"
+  },
+  "specificAssetConfirmations": [
+    {
+      "recordedAt": "2026-08-06",
+      "assets": [
+        "/images/viral-ai-streetwear-portrait-prompts-cover.webp",
+        "/images/cyberpunk-neon-ai-portrait-before-after.webp",
+        "/images/golden-hour-rooftop-ai-portrait-before-after.webp",
+        "/images/dark-luxury-studio-ai-portrait-before-after.webp",
+        "/images/industrial-warehouse-ai-portrait-before-after.webp",
+        "/images/rainy-urban-street-ai-portrait-before-after.webp"
+      ],
+      "ownership": "The website owner explicitly confirmed ownership of these six source images for AQPrompts site use.",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner-confirmed-for-site-display",
+      "latestEdit": {
+        "tool": "OpenAI built-in image generation editor",
+        "date": "2026-08-06",
+        "purpose": "Removed third-party-style footwear marks and stray signage, standardized comparison labels, and simplified the cover without changing the supplied article prompts."
+      }
+    }
+  ],
+  "limitations": [
+    "This project-level declaration does not identify an individual generation tool, model version, prompt, generation date, or settings.",
+    "It does not override a specific high-risk signal involving public figures, copyrighted characters, ambiguous minors, watermarks, clear trademark misuse, or an identified unapproved third-party reference.",
+    "Founder and author photographs remain classified as real photographs unless a file-specific record proves that an image is AI-created."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://www.growthguide.site",
+      "service-desc": [
+        {
+          "href": "https://www.growthguide.site/openapi.json",
+          "type": "application/openapi+json"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://www.growthguide.site/docs/api"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://www.growthguide.site/api/health"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500" role="img" aria-labelledby="title description">
+  <title id="title">AQPrompts media placeholder</title>
+  <desc id="description">Abstract orange and navy shapes used while publication-rights evidence is reviewed.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a4c"/>
+      <stop offset="1" stop-color="#ff5a1f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1500" fill="url(#background)"/>
+  <circle cx="1020" cy="210" r="330" fill="#ff6b35" opacity=".12"/>
+  <circle cx="180" cy="1320" r="390" fill="#60a5fa" opacity=".09"/>
+  <rect x="180" y="330" width="840" height="840" rx="96" fill="#ffffff" opacity=".05" stroke="#ffffff" stroke-opacity=".16" stroke-width="4"/>
+  <path d="M385 890 560 635l128 170 95-115 150 200H385Z" fill="url(#accent)" opacity=".92"/>
+  <circle cx="455" cy="565" r="62" fill="#fff" opacity=".78"/>
+  <rect x="330" y="1010" width="540" height="22" rx="11" fill="#fff" opacity=".7"/>
+  <rect x="420" y="1065" width="360" height="16" rx="8" fill="#fff" opacity=".35"/>
+  <text x="600" y="1255" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700" text-anchor="middle">AQPrompts</text>
+  <text x="600" y="1315" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="28" text-anchor="middle">Media evidence under review</text>
+</svg>

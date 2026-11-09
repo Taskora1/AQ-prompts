@@ -1,0 +1,253 @@
+{
+  "schema_version": "1.0",
+  "serverInfo": {
+    "name": "AQPrompts AI Prompts",
+    "version": "1.0.0",
+    "description": "Free AI image prompts for Instagram creators. Works with Midjourney, Leonardo AI, DALL-E, ChatGPT and Gemini.",
+    "url": "https://www.aqprompts.com"
+  },
+  "transport": {
+    "type": "http",
+    "endpoint": "https://www.aqprompts.com/api/mcp"
+  },
+  "capabilities": {
+    "tools": true
+  },
+  "tools": [
+    {
+      "name": "list_prompts",
+      "description": "List Photo or Text prompts with bounded pagination, title search, and optional status filtering.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "library": {
+            "type": "string",
+            "enum": ["photo", "text"]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "search": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "draft", "published"]
+          }
+        },
+        "required": ["library"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_prompt",
+      "description": "Get one Photo or Text prompt by its numeric database ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "library": {
+            "type": "string",
+            "enum": ["photo", "text"]
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["library", "id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_categories",
+      "description": "List existing prompt categories and their database IDs for manual selection.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "create_draft",
+      "description": "Create a new prompt with status forced to draft. Photo prompts require an approved image URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "library": {
+            "type": "string",
+            "enum": ["photo", "text"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 20000
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 220
+          },
+          "primaryCategoryId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "categoryIds": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "intro": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "useCase": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "images": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2000
+            }
+          },
+          "imageAltTexts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "ogImage": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          }
+        },
+        "required": ["library", "title", "prompt", "primaryCategoryId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_draft",
+      "description": "Update an existing draft only. Published prompts are read-only; status cannot be changed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "library": {
+            "type": "string",
+            "enum": ["photo", "text"]
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 20000
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 220
+          },
+          "primaryCategoryId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "categoryIds": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "intro": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "useCase": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "images": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2000
+            }
+          },
+          "imageAltTexts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "ogImage": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          }
+        },
+        "required": ["library", "id"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

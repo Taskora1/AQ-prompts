@@ -1,0 +1,40 @@
+User-agent: *
+Allow: /
+Allow: /tools/ai-image-prompts/p/
+Disallow: /account
+Disallow: /tools/ai-image-prompts/favorites
+Disallow: /promptshe-trial
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+Disallow: /?q=
+Disallow: /?sort=
+Disallow: /?filter=
+Disallow: /?tag=
+Disallow: /?category=
+Disallow: /?mood=
+Disallow: /?usecase=
+Disallow: /tools/ai-image-prompts?q=
+Disallow: /tools/ai-image-prompts?sort=
+Disallow: /tools/ai-image-prompts?filter=
+Disallow: /tools/ai-image-prompts?tag=
+Disallow: /tools/ai-image-prompts?category=
+Disallow: /tools/ai-image-prompts?mood=
+Disallow: /tools/ai-image-prompts?usecase=
+Disallow: /tools/ai-image-prompts?platform=
+Disallow: /blog?q=
+Disallow: /blog?category=
+Disallow: /blog?tag=
+Disallow: /admin?
+Disallow: /admin/prompts?
+Disallow: /admin/blog?
+Disallow: /tools/ai-image-prompts/favorites
+
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Reflectionbot
+Allow: /
+
+Sitemap: https://www.aqprompts.com/sitemap.xml
+Sitemap: https://www.aqprompts.com/image-sitemap.xml

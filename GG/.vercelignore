@@ -1,0 +1,9 @@
+content/quarantine-assets/
+.env*
+.git/
+.next/
+.vercel/
+node_modules/
+*.log
+*.err.log
+tmp/

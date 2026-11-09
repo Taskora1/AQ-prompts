@@ -1,0 +1,39 @@
+{
+  "$schema": "https://agentskills.io/schema/v0.2.0/index.json",
+  "name": "AQPrompts",
+  "description": "Free AI image prompts for Instagram creators",
+  "url": "https://www.aqprompts.com",
+  "skills": [
+    {
+      "name": "Browse AI Prompts",
+      "type": "navigation",
+      "description": "Browse free AI image prompts for Instagram portraits",
+      "url": "https://www.aqprompts.com/tools/ai-image-prompts"
+    },
+    {
+      "name": "Boys Portraits",
+      "type": "navigation", 
+      "description": "AI prompts for boys and men portrait photography",
+      "url": "https://www.aqprompts.com/ai-image-prompts/boys"
+    },
+    {
+      "name": "Girls Portraits",
+      "type": "navigation",
+      "description": "AI prompts for girls and women portrait photography", 
+      "url": "https://www.aqprompts.com/ai-image-prompts/girls"
+    },
+    {
+      "name": "Copy Prompt",
+      "type": "action",
+      "description": "Copy a ready-made AI image prompt to clipboard",
+      "url": "https://www.aqprompts.com/tools/ai-image-prompts"
+    },
+    {
+      "name": "View AI Tools",
+      "type": "navigation",
+      "description": "Browse best AI image generation tools",
+      "url": "https://www.aqprompts.com/tools"
+    }
+  ]
+}
+

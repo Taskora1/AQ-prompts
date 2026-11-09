@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-07-26T00:00:00.000Z",
+  "testingRecords": [],
+  "publishedEvidenceRecordCount": 0,
+  "recordErrors": [],
+  "unsupportedClaims": [
+    {
+      "file": "public/data/prompts-index.json",
+      "line": 16202,
+      "claimType": "comparative performance claim",
+      "excerpt": "\"question\": \"How can both faces stay more consistent?\",",
+      "requiredEvidenceIds": []
+    }
+  ],
+  "passed": false
+}

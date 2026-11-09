@@ -1,0 +1,39 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AQPrompts AI Prompts API",
+    "version": "1.0.0",
+    "description": "Free AI image prompts for Instagram creators"
+  },
+  "servers": [
+    {
+      "url": "https://www.aqprompts.com"
+    }
+  ],
+  "paths": {
+    "/data/prompts-index.json": {
+      "get": {
+        "summary": "Get all AI prompts",
+        "description": "Returns all available AI image prompts",
+        "responses": {
+          "200": {
+            "description": "List of prompts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "prompts": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
