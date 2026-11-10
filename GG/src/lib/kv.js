@@ -1,4 +1,4 @@
-import { createClient } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import { getDeploymentEnvironment, isPreviewKvDisabled } from './deployment-env.js';
 
 const ENV_PAIRS = [
@@ -58,7 +58,7 @@ export function getKvEnvStatus({ env = process.env } = {}) {
 
 export function getKvClient({
   env = process.env,
-  createKvClient = createClient,
+  createKvClient = ({ url, token }) => new Redis({ url, token }),
 } = {}) {
   if (isPreviewKvDisabled(env)) {
     throw new KvDisabledError();
@@ -72,7 +72,7 @@ export function getKvClient({
 
   if (!resolved) {
     const checked = ENV_PAIRS.map(([urlName, tokenName]) => `${urlName} + ${tokenName}`).join(', ');
-    throw new Error(`Vercel KV/Upstash env vars are missing. Checked: ${checked}.`);
+    throw new Error(`Upstash Redis env vars are missing. Checked: ${checked}.`);
   }
 
   if (!client) {

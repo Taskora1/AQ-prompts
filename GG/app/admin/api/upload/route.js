@@ -102,12 +102,29 @@ export async function POST(request) {
 
     if (!isSvg) {
       const input = Buffer.from(await file.arrayBuffer());
-      const processed = await watermarkImage(input, RASTER_FORMATS[file.type]);
-      uploadFile = new Blob([processed.buffer], { type: processed.mimeType });
-      uploadExtension = processed.extension;
-      width = processed.width;
-      height = processed.height;
-      watermarked = processed.watermarked;
+      try {
+        const processed = await watermarkImage(input, RASTER_FORMATS[file.type]);
+        uploadFile = new Blob([processed.buffer], { type: processed.mimeType });
+        uploadExtension = processed.extension;
+        width = processed.width;
+        height = processed.height;
+        watermarked = processed.watermarked;
+      } catch (error) {
+        // Watermarking needs sharp (a native module), which is not
+        // available on Cloudflare Workers. On such a runtime the
+        // watermark step fails with a 503; upload the original image
+        // instead of failing the upload. Any other watermark error
+        // (invalid image, too large) is still rejected below.
+        if (error instanceof ImageWatermarkError && error.status === 503) {
+          console.warn('Image watermarking unavailable; uploading without a watermark:', error.message);
+          uploadFile = file;
+          const format = RASTER_FORMATS[file.type];
+          uploadExtension = format === 'jpeg' ? 'jpg' : format;
+          watermarked = false;
+        } else {
+          throw error;
+        }
+      }
     }
 
     const publicId = safePublicId(file.name);

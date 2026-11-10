@@ -61,7 +61,17 @@ const securityHeaders = [
   },
 ];
 
-if (process.env.VERCEL_ENV === 'preview') {
+// Non-production deploys (Cloudflare Pages preview branches) must not be
+// indexed. CF_PAGES_BRANCH is set by Cloudflare Pages; fall back to the
+// legacy VERCEL_ENV value so the same check still works on Vercel.
+const deployBranch = process.env.CF_PAGES_BRANCH
+  || (process.env.VERCEL_ENV === 'preview' ? 'preview' : '')
+  || process.env.ENVIRONMENT
+  || '';
+const isPreviewDeploy = deployBranch === 'preview'
+  || (deployBranch !== '' && deployBranch !== 'main' && deployBranch !== 'production');
+
+if (isPreviewDeploy) {
   securityHeaders.push({
     key: 'X-Robots-Tag',
     value: 'noindex, nofollow, noarchive',
@@ -80,10 +90,6 @@ const revalidatedDataHeaders = [
     key: 'Cache-Control',
     value: 'no-store, max-age=0',
   },
-  {
-    key: 'Vercel-CDN-Cache-Control',
-    value: 'no-store',
-  },
 ];
 
 const publicFeedHeaders = [
@@ -91,18 +97,23 @@ const publicFeedHeaders = [
     key: 'Cache-Control',
     value: 'public, max-age=300, stale-while-revalidate=1800',
   },
-  {
-    key: 'Vercel-CDN-Cache-Control',
-    value: 'public, s-maxage=86400, stale-while-revalidate=86400',
-  },
-];/** @type {import('next').NextConfig} */
+];
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,  poweredByHeader: false,  compress: true,  devIndicators: false,  experimental: {    inlineCss: true,
+  reactStrictMode: true,
+
+  poweredByHeader: false,
+  compress: true,
+  devIndicators: false,
+  experimental: {
+    inlineCss: true,
     optimizePackageImports: ['lucide-react'],
-    // Each static-generation worker is a separate OS process with its own pg
-    // pool. Session-mode poolers cap total clients, so keep worker count low
-    // to stay under the pooler's client limit (see PG_POOL_MAX in src/lib/db.js).
-    cpus: 1,  },
+    // The database is reached over HTTP (Neon serverless driver), so
+    // there is no per-worker connection pool to cap; worker count is
+    // kept low to stay under the Neon HTTP request concurrency instead.
+    cpus: 1,
+  },
   async redirects() {
     return [
       ...quarantinedMediaRedirects,
@@ -136,6 +147,86 @@ const nextConfig = {
         destination: '/tools/ai-image-prompts/women/:path*',
         permanent: true,
       },
+      // Redirects moved from vercel.json so they keep working on
+      // Cloudflare (Cloudflare does not read vercel.json). Order matches
+      // vercel.json; the /guides rule is already above, so it is not
+      // repeated here. The apex-to-www rule is last (catch-all).
+      {
+        source: '/videos/:slug',
+        destination: 'https://www.aqprompts.com/blog/:slug',
+        permanent: true,
+      },
+      {
+        source: '/tools',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts',
+        permanent: true,
+      },
+      {
+        source: '/tools/photo-editing-prompts',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts/photo-editing',
+        permanent: true,
+      },
+      {
+        source: '/prompts',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts',
+        permanent: true,
+      },
+      {
+        source: '/prompts/:promptSlug',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts/p/:promptSlug',
+        permanent: true,
+      },
+      {
+        source: '/category/instagram-growth',
+        destination: 'https://www.aqprompts.com/blog?search=instagram%20growth',
+        permanent: true,
+      },
+      {
+        source: '/category/ai-prompts',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts',
+        permanent: true,
+      },
+      {
+        source: '/faq',
+        destination: 'https://www.aqprompts.com/#faq',
+        permanent: true,
+      },
+      {
+        source: '/blog/mastering-ai-portrait-prompts',
+        destination: 'https://www.aqprompts.com/blog/ai-portrait-prompts-viral-content',
+        permanent: true,
+      },
+      {
+        source: '/blog/instagram-reels-not-getting-views-fix',
+        destination: 'https://www.aqprompts.com/blog',
+        permanent: true,
+      },
+      {
+        source: '/go-viral-on-instagram-reels',
+        destination: 'https://www.aqprompts.com/blog',
+        permanent: true,
+      },
+      {
+        source: '/why-instagram-reach-dropped-suddenly-in-2026-a-practical-guide-to-recover-your-views',
+        destination: 'https://www.aqprompts.com/blog',
+        permanent: true,
+      },
+      {
+        source: '/ai-image-prompts',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts',
+        permanent: true,
+      },
+      {
+        source: '/ai-image-prompts/:path*',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts/:path*',
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'aqprompts.com' }],
+        destination: 'https://www.aqprompts.com/:path*',
+        permanent: true,
+      },
     ];
   },
   async headers() {
@@ -151,10 +242,6 @@ const nextConfig = {
       ...[...tombstonePublicPaths].map((source) => ({
         source,
         headers: [
-          {
-            key: 'Vercel-CDN-Cache-Control',
-            value: 'no-store',
-          },
           {
             key: 'Cache-Control',
             value: 'no-store, max-age=0',

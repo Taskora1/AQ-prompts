@@ -1,13 +1,32 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import sharp from 'sharp';
-
 const MAX_IMAGE_PIXELS = 40_000_000;
 const WATERMARK_NAMESPACE = 'https://www.aqprompts.com/ns/watermark/1.0/';
 const WATERMARK_XMP = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:aqp="${WATERMARK_NAMESPACE}" aqp:Watermarked="true" aqp:Version="1"/></rdf:RDF></x:xmpmeta>`;
 const LOGO_PATH = path.join(process.cwd(), 'public', 'aqprompts-icon.svg');
 let logoPromise;
+
+// sharp is a native module, so it cannot load on Cloudflare Workers
+// (V8 isolates have no native addons). Load it lazily and only when
+// watermarking actually runs, so importing this module never breaks the
+// upload route on a runtime without sharp. When sharp is unavailable,
+// getSharp throws a 503 ImageWatermarkError and the caller uploads the
+// original image without a watermark instead of failing.
+let sharpModule;
+
+async function getSharp() {
+  if (sharpModule) return sharpModule;
+  try {
+    sharpModule = (await import('sharp')).default;
+  } catch {
+    throw new ImageWatermarkError(
+      'Image watermarking is not available on this deployment. Uploads continue without a watermark.',
+      503,
+    );
+  }
+  return sharpModule;
+}
 
 const FORMAT_CONFIG = {
   jpeg: {
@@ -131,6 +150,7 @@ function createWatermarkLayout(width, height) {
 }
 
 async function createWatermarkOverlay(width, height) {
+  const sharp = await getSharp();
   const layout = createWatermarkLayout(width, height);
   const logo = await sharp(await getLogoSvg())
     .resize(layout.logoSize, layout.logoSize, { fit: 'contain' })
@@ -162,6 +182,8 @@ export async function watermarkImage(input, expectedFormat) {
   if (!Buffer.isBuffer(input) || input.length === 0) {
     throw new ImageWatermarkError('The uploaded image is empty.');
   }
+
+  const sharp = await getSharp();
 
   let image;
   try {
