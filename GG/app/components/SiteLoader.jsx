@@ -46,37 +46,34 @@ export default function SiteLoader() {
     } catch {
       // sessionStorage unavailable — the splash still hides via the timers below.
     }
-    let loaded = document.readyState === 'complete';
+    // The splash is branding, NOT a "page fully loaded" gate: it must never
+    // wait for the window `load` event. On a slow connection hydration itself
+    // is delayed by the JS payload, and `load` waits for every image and
+    // third-party script, so the loader used to sit for many seconds. Hide it
+    // once the minimum time has elapsed after hydration, whatever the page
+    // is still loading.
     let minDone = false;
     let finished = false;
 
     const finish = () => {
-      if (finished || !loaded || !minDone) return;
+      if (finished || !minDone) return;
       finished = true;
       setVisible(false);
       window.setTimeout(() => setGone(true), 600); // fade-out ke baad DOM se hatao
     };
 
-    const onLoad = () => {
-      loaded = true;
-      finish();
-    };
-
     const minTimer = window.setTimeout(() => {
       minDone = true;
       finish();
-    }, 1200);
+    }, 800);
 
-    // Safety: loader kabhi bhi 4 second se zyada na ruke.
+    // Safety: loader kabhi bhi 2.5 second se zyada na ruke.
     const maxTimer = window.setTimeout(() => {
-      loaded = true;
       minDone = true;
       finish();
-    }, 4000);
+    }, 2500);
 
-    window.addEventListener('load', onLoad);
     return () => {
-      window.removeEventListener('load', onLoad);
       window.clearTimeout(minTimer);
       window.clearTimeout(maxTimer);
     };

@@ -157,7 +157,10 @@ const nextConfig = {
   compress: true,
   devIndicators: false,
   experimental: {
-    inlineCss: true,
+    // inlineCss was inlining the whole 183 KB stylesheet (~26.5 KB
+    // compressed, ~23 KB unused on the homepage) into every HTML page.
+    // External stylesheets are cached across pages instead, so keep it off.
+    inlineCss: false,
     optimizePackageImports: ['lucide-react'],
     // The database is reached over HTTP (Neon serverless driver), so
     // there is no per-worker connection pool to cap; worker count is

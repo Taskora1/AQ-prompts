@@ -99,7 +99,7 @@ const BlogPage = ({ initialPosts = [] }) => {
       <div className="min-h-screen text-[var(--text-primary)]">
         <Header />
 
-        <main>
+        <main id="main-content">
           {/* Page Hero */}
           <section className="relative bg-white py-8 sm:py-10 dark:bg-[#0a0a0f]">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -182,6 +182,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                       priority
                       fetchPriority="high"
                       preserveAspect
+                      responsiveCloudinary
                       sizes="(min-width: 768px) 50vw, 100vw"
                     />
                   </div>
@@ -268,6 +269,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                           fetchPriority={index === 0 ? 'high' : undefined}
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           preserveAspect
+                          responsiveCloudinary
                         />
                         </div>
                         <CardHeader>
@@ -347,6 +349,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                             fetchPriority={index === 0 ? 'high' : undefined}
                             sizes="(max-width: 768px) 100vw, 33vw"
                             preserveAspect
+                            responsiveCloudinary
                           />
                           </div>
                         </div>

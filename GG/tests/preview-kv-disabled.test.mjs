@@ -149,33 +149,6 @@ test('Preview KV-disabled configuration validates without any KV credentials', a
     assert.equal(getKvEnvStatus({ env }).disabled, true);
   });
 
-  await t.test('stats and trending return successful empty unavailable payloads', async () => {
-    setEnvironment(previewEnvironment({
-      KV_REST_API_URL: 'https://shared-production.fixture.test',
-      KV_REST_API_TOKEN: 'fixture-production-token',
-    }));
-    const statsRoute = await import('../app/api/prompts/stats/route.js');
-    const trendingRoute = await import('../app/api/prompts/trending/route.js');
-
-    const stats = await statsRoute.GET();
-    assert.equal(stats.status, 200);
-    assert.deepEqual(await stats.json(), {
-      success: true,
-      stats: {},
-      unavailable: true,
-      reason: 'kv_disabled',
-    });
-
-    const trending = await trendingRoute.GET();
-    assert.equal(trending.status, 200);
-    assert.deepEqual(await trending.json(), {
-      success: true,
-      prompts: [],
-      unavailable: true,
-      reason: 'kv_disabled',
-    });
-  });
-
   await t.test('engagement write routes return unavailable without KV operations', async () => {
     setEnvironment(previewEnvironment({
       KV_REST_API_URL: 'https://shared-production.fixture.test',

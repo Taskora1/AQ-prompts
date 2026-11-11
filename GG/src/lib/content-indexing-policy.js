@@ -265,7 +265,6 @@ export const REQUESTED_NOINDEX_PROMPT_SLUGS = Object.freeze([
 export const STATIC_NOINDEX_FOLLOW_PATHS = Object.freeze([
   '/pricing',
   '/refund-policy',
-  '/tools/ai-image-prompts/trending',
   '/vip-creator-club',
 ]);
 

@@ -14,7 +14,6 @@ const PUBLIC_PROMPT_INDEX_PATHS = [
   PROMPT_BASE_PATH,
   `${PROMPT_BASE_PATH}/favorites`,
   '/api/prompts',
-  '/api/prompts/trending',
   '/sitemap.xml',
   '/image-sitemap.xml',
   '/feed.xml',
@@ -26,7 +25,6 @@ const STRUCTURAL_PROMPT_PATHS = [
   '/',
   '/about',
   '/categories',
-  '/api/prompts/stats',
 ];
 
 function isPublished(prompt) {
@@ -93,7 +91,6 @@ export function revalidateCategoryContent({ previousCategory = null, nextCategor
     PROMPT_BASE_PATH,
     `${PROMPT_BASE_PATH}/favorites`,
     '/api/prompts',
-    '/api/prompts/trending',
     previousCategory?.slug ? `${PROMPT_BASE_PATH}/${previousCategory.slug}` : '',
     nextCategory?.slug ? `${PROMPT_BASE_PATH}/${nextCategory.slug}` : '',
     '/sitemap.xml',

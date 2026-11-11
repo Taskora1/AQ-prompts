@@ -474,7 +474,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
     return (
       <>
         <Header />
-        <main className="min-h-screen flex items-center justify-center">
+        <main id="main-content" className="min-h-screen flex items-center justify-center">
           <div className="container mx-auto px-4 py-20 text-center">
             <div className="max-w-md mx-auto">
               <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Article Not Found</h1>
@@ -542,7 +542,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
             </div>
           </ErrorBoundary>
 
-          <main className="pb-16 sm:pb-24">
+          <main id="main-content" className="pb-16 sm:pb-24">
             <article className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-12">
               <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-16">
                 <div className="min-w-0">

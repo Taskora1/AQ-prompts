@@ -24,7 +24,7 @@ export default function WebpushrLoader() {
       script.async = true;
       script.defer = true;
       script.src = 'https://cdn.webpushr.com/app.min.js';
-      script.onerror = () => console.error('Webpushr failed to load from its CDN.');
+      script.onerror = () => console.warn('Webpushr failed to load from its CDN.');
       document.head.appendChild(script);
     }
 

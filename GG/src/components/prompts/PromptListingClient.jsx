@@ -335,6 +335,7 @@ export default function PromptListingClient({
                   showSave
                   mobileTitleBelow
                   uniformAspectRatio
+                  priority={index === 0}
                 />
               </Fragment>
             ))}

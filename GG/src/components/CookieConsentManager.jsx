@@ -311,7 +311,7 @@ export default function CookieConsentManager({ gaId = '', clarityId = '' }) {
             <button
               type="button"
               onClick={() => commit({ necessary: true, analytics: true, advertising: true, preferences: true })}
-              className="min-h-10 rounded-full border border-[#ff6b35] bg-[#ff6b35] px-2.5 text-[11px] font-black text-white transition hover:bg-[#e85d28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c] focus-visible:ring-offset-2 sm:text-sm"
+              className="min-h-10 rounded-full border border-[#ff6b35] bg-[#ff6b35] px-2.5 text-[11px] font-black text-[#111118] transition hover:bg-[#e85d28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c] focus-visible:ring-offset-2 sm:text-sm"
             >
               Accept all
             </button>
@@ -393,7 +393,7 @@ export default function CookieConsentManager({ gaId = '', clarityId = '' }) {
               <button
                 type="button"
                 onClick={() => commit(choices)}
-                className="min-h-11 rounded-full border-2 border-[#ff6b35] bg-[#ff6b35] px-4 text-sm font-black text-white hover:bg-[#e85d28]"
+                className="min-h-11 rounded-full border-2 border-[#ff6b35] bg-[#ff6b35] px-4 text-sm font-black text-[#111118] hover:bg-[#e85d28]"
               >
                 Save preferences
               </button>

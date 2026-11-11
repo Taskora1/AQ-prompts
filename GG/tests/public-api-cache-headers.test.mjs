@@ -14,17 +14,6 @@ test('prompt directory, page, and search APIs advertise one-day shared caching',
   }
 });
 
-test('prompt stats and trending APIs share-cache for one hour', async () => {
-  const routes = await Promise.all([
-    readFile(new URL('../app/api/prompts/stats/route.js', import.meta.url), 'utf8'),
-    readFile(new URL('../app/api/prompts/trending/route.js', import.meta.url), 'utf8'),
-  ]);
-
-  for (const route of routes) {
-    assert.match(route, /s-maxage=3600, stale-while-revalidate=3600/);
-  }
-});
-
 test('public navigation points guides to the blog and legacy guides URL redirects', async () => {
   const [navbar, drawer, config] = await Promise.all([
     readFile(new URL('../src/components/Navbar.jsx', import.meta.url), 'utf8'),

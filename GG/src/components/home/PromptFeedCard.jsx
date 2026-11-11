@@ -24,6 +24,9 @@ export default function PromptFeedCard({
   mobileTitleBelow = false,
   uniformAspectRatio = false,
   wideOnMobile = false,
+  // First card on listing pages passes priority so the LCP image is fetched
+  // eagerly instead of lazily (library LCP was 4.1s with a 2,830ms load delay).
+  priority = false,
   sizes = '(max-width: 767px) calc(50vw - 14px), (max-width: 1023px) calc(33.333vw - 24px), (max-width: 1279px) calc(25vw - 28px), 292px',
 }) {
   const promptUrl = href || getPromptUrl({ slug, title });
@@ -86,7 +89,8 @@ export default function PromptFeedCard({
             srcSet={responsiveImage?.srcSet}
             alt={imageAlt || title}
             sizes={sizes}
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : undefined}
             decoding="async"
             style={uniformAspectRatio ? undefined : { aspectRatio: 'auto 4 / 5' }}
             className={`block w-full transition-transform duration-300 ease-out group-hover:scale-[1.03] motion-reduce:transform-none ${

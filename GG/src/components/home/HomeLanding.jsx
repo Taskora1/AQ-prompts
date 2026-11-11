@@ -230,8 +230,12 @@ export default function HomeLanding({
                           srcSet={responsiveImage?.srcSet}
                           alt={prompt.imageAlt || prompt.title || 'AI image prompt preview'}
                           sizes={imageSizes}
-                          loading={index === 0 ? 'eager' : 'lazy'}
-                          fetchPriority={index === 0 ? 'high' : undefined}
+                          // All three hero images are above the fold: load them
+                          // eagerly with high priority. The centre (front) card
+                          // is the LCP element — it was lazy with no priority,
+                          // which added ~1.4s of resource load delay.
+                          loading="eager"
+                          fetchPriority="high"
                           decoding="async"
                           className="absolute inset-0 h-full w-full object-cover"
                         />
