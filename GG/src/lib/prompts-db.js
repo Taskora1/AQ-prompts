@@ -1280,6 +1280,57 @@ export async function getPublishedPromptSitemapRows() {
   return cachedSitemapRowsPromise;
 }
 
+let cachedSlimSitemapRowsPromise = null;
+let cachedSlimSitemapRowsAt = 0;
+
+// Slimmer sitemap rows for app/sitemap.js only: it renders slug + dates and
+// never uses `images`, so skip the adult-context regex and the per-row
+// normalizePrompt (576 calls) that the image sitemap needs. Same
+// eligibility rule, same order, same 1h in-memory TTL. This keeps the main
+// sitemap generation well inside the Workers 10 ms CPU limit (Error 1102);
+// the image sitemap keeps using the full rows above.
+async function loadPublishedPromptSitemapRowsSlim() {
+  const result = await getPgPool().query(`
+    SELECT
+      p.slug,
+      p.created_at::text AS "createdAt",
+      p.updated_at::text AS "updatedAt"
+    FROM prompts p
+    WHERE p.status = 'published'
+      AND p.library_type = 'photo'
+      AND COALESCE(p.should_noindex, false) = false
+      AND NULLIF(BTRIM(p.slug), '') IS NOT NULL
+      AND NULLIF(BTRIM(p.title), '') IS NOT NULL
+      AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
+    ORDER BY p.id
+  `);
+
+  return result.rows.map((row) => ({
+    slug: row.slug,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
+}
+
+export async function getPublishedPromptSitemapRowsSlim() {
+  const now = Date.now();
+  if (
+    cachedSlimSitemapRowsPromise
+    && now - cachedSlimSitemapRowsAt < SITEMAP_ROWS_CACHE_TTL_MS
+  ) {
+    return cachedSlimSitemapRowsPromise;
+  }
+
+  cachedSlimSitemapRowsAt = now;
+  cachedSlimSitemapRowsPromise = loadPublishedPromptSitemapRowsSlim()
+    .catch((error) => {
+      cachedSlimSitemapRowsPromise = null;
+      cachedSlimSitemapRowsAt = 0;
+      throw error;
+    });
+  return cachedSlimSitemapRowsPromise;
+}
+
 // ── Slim payload (listing pages — no large text fields) ──────────────
 
 const SLIM_CACHE_TTL_MS = 5 * 60 * 1000;

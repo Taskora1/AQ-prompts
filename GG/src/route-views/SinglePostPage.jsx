@@ -175,7 +175,16 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
 
     async function loadPrompts() {
       try {
-        const response = await fetch('/api/prompts', { cache: 'force-cache' });
+        // Related prompts only: the old full-directory fetch shipped all
+        // 576 prompts (~160 KB) to the client for a 3-card section. The
+        // related endpoint picks 3 server-side (seeded by the post slug)
+        // and returns ~2 KB.
+        const slug = post?.slug || '';
+        if (!slug) return;
+        const response = await fetch(
+          `/api/prompts/related?slug=${encodeURIComponent(slug)}&limit=3`,
+          { cache: 'force-cache' },
+        );
         if (!response.ok) return;
         const data = await response.json();
         if (!cancelled && Array.isArray(data?.prompts)) {
@@ -199,7 +208,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
       if (idleId) window.cancelIdleCallback(idleId);
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [post?.slug]);
 
   useEffect(() => {
     if (slug) {

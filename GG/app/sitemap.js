@@ -1,6 +1,6 @@
 import { getPublishedBlogPostsForFeed } from '@/lib/blog-db';
 import {
-  getPublishedPromptSitemapRows,
+  getPublishedPromptSitemapRowsSlim,
   getPromptUrl,
   PROMPT_BASE_PATH,
   PROMPT_CATEGORIES,
@@ -72,12 +72,16 @@ export default async function sitemap() {
   // while a prompts or posts failure still fails the whole sitemap, as
   // before. Entries are appended in the same order (authors, prompts,
   // posts), so the output is identical.
+  // The prompts query uses the slim rows (slug + dates only): this route
+  // never renders images, so it skips the adult-context regex and the
+  // per-row normalizePrompt that the image sitemap needs — the main
+  // sitemap generation stays inside the Workers 10 ms CPU limit.
   const [authors, prompts, posts] = await Promise.all([
     listAuthorSitemapRows().catch((error) => {
       console.error('Author profile sitemap query failed:', error);
       return [];
     }),
-    getPublishedPromptSitemapRows(),
+    getPublishedPromptSitemapRowsSlim(),
     // Read published posts from Neon (slim — sitemap only needs slug + dates, no content columns)
     getPublishedBlogPostsForFeed(),
   ]);

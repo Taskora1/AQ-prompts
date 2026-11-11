@@ -12,6 +12,7 @@ import {
 import {
   getAllPrompts,
   getPublishedPromptSitemapRows,
+  getPublishedPromptSitemapRowsSlim,
   getAllPromptSlugs,
   getCachedPromptBySlug,
   getPromptBySlug,
@@ -32,7 +33,7 @@ import {
 import { isBuildPhase } from '@/lib/db';
 
 export { getPromptCategory, getPromptCategoryUrl, getPromptUrl, isIndexablePrompt, PROMPT_BASE_PATH, PROMPT_CATEGORIES, slugifyPrompt };
-export { getAllPrompts, getPublishedPromptSitemapRows, getAllPromptSlugs, getCachedPromptBySlug, getPromptBySlug, getPromptsPayload, normalizePrompt, getSlimAllPrompts, getSlimPromptsForDetail, getRandomSlimPrompts, getSlimPromptsByIds, getSlimPromptsPage, getPromptFeedRows, getPublishedPromptCategorySlugs, getHomepagePromptCards, getSlimPromptsPayload, getNewsletterWelcomePrompts, getPromptListingPagePayload };
+export { getAllPrompts, getPublishedPromptSitemapRows, getPublishedPromptSitemapRowsSlim, getAllPromptSlugs, getCachedPromptBySlug, getPromptBySlug, getPromptsPayload, normalizePrompt, getSlimAllPrompts, getSlimPromptsForDetail, getRandomSlimPrompts, getSlimPromptsByIds, getSlimPromptsPage, getPromptFeedRows, getPublishedPromptCategorySlugs, getHomepagePromptCards, getSlimPromptsPayload, getNewsletterWelcomePrompts, getPromptListingPagePayload };
 
 /**
  * Returns the count of complete published prompts, without applying SEO
