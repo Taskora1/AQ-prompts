@@ -104,6 +104,125 @@ function getDisplayFaqs(post) {
     .filter((faq) => faq.question && faq.answer);
 }
 
+function textFromHtml(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Drop a table column whose body cells all carry the same value (for
+// example a "Best ratio" column that repeats "4:5" in every row). Only
+// fires when the column is provably redundant: header plus at least two
+// body rows, identical non-empty cell text, no spanning cells.
+function dropRedundantTableColumns(html = '') {
+  return String(html || '').replace(/<table\b[^>]*>([\s\S]*?)<\/table>/gi, (tableMatch, tableInner) => {
+    const rows = [...tableInner.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+    if (rows.length < 3) return tableMatch;
+    if (/<t[hd]\b[^>]*(colspan=["']?([2-9]|1[0-9])|rowspan=["']?([2-9]|1[0-9]))/i.test(tableInner)) {
+      return tableMatch;
+    }
+
+    const parsedRows = rows.map((row) =>
+      [...row[1].matchAll(/<(t[hd])\b([^>]*)>([\s\S]*?)<\/\1>/gi)].map((cell) => ({
+        tag: cell[1],
+        text: textFromHtml(cell[3]),
+      })),
+    );
+    const columnCount = parsedRows[0].length;
+    if (!columnCount || parsedRows.some((row) => row.length !== columnCount)) return tableMatch;
+
+    const redundantIndex = parsedRows[0].findIndex((headerCell, columnIndex) => {
+      if (columnIndex === 0) return false;
+      const firstValue = parsedRows[1][columnIndex].text;
+      if (!firstValue) return false;
+      return parsedRows.slice(1).every((row) => row[columnIndex].text === firstValue);
+    });
+    if (redundantIndex < 0) return tableMatch;
+
+    let result = tableInner;
+    result = result.replace(/<colgroup\b[^>]*>([\s\S]*?)<\/colgroup>/i, (groupMatch, groupInner) => {
+      const cols = [...groupInner.matchAll(/<col\b[^>]*\/?>/gi)];
+      if (cols.length !== columnCount) return groupMatch;
+      return groupMatch.replace(cols[redundantIndex][0], '');
+    });
+    result = result.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (rowMatch, rowInner) => {
+      const cells = [...rowInner.matchAll(/<t[hd]\b[^>]*>[\s\S]*?<\/t[hd]>/gi)];
+      if (cells.length !== columnCount) return rowMatch;
+      return rowMatch.replace(cells[redundantIndex][0], '');
+    });
+
+    return tableMatch.replace(tableInner, result);
+  });
+}
+
+// Turn an in-body FAQ section (h2 "Frequently Asked Questions" followed
+// by h3 questions with paragraph answers) into a <details> accordion.
+// Wording is unchanged; only the markup changes. The h2 gets the
+// common-questions id so the "Jump to FAQ" link still lands on it.
+function convertInlineFaqToAccordion(html = '') {
+  const source = String(html || '');
+  const headingPattern = /<h2\b([^>]*)>([\s\S]*?)<\/h2>/gi;
+  let headingMatch;
+  let faqHeading = null;
+
+  while ((headingMatch = headingPattern.exec(source)) !== null) {
+    if (/frequently asked questions/i.test(textFromHtml(headingMatch[2]))) {
+      faqHeading = headingMatch;
+      break;
+    }
+  }
+  if (!faqHeading) return source;
+
+  const headingEnd = faqHeading.index + faqHeading[0].length;
+  const nextHeadingIndex = source.slice(headingEnd).search(/<h2\b/i);
+  const sectionEnd = nextHeadingIndex < 0 ? source.length : headingEnd + nextHeadingIndex;
+  const section = source.slice(headingEnd, sectionEnd);
+
+  const pairs = [...section.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>\s*((?:<p\b[^>]*>[\s\S]*?<\/p>\s*)+)/gi)];
+  if (pairs.length === 0) return source;
+
+  const accordion = `<div class="article-faq-list">${pairs
+    .map(
+      ([, question, answers]) =>
+        `<details class="article-faq-item"><summary class="article-faq-question"><span>${question.trim()}</span><span class="article-faq-chevron" aria-hidden="true">›</span></summary><div class="article-faq-answer">${answers.trim()}</div></details>`,
+    )
+    .join('')}</div>`;
+
+  const headingAttrs = faqHeading[1] || '';
+  const headingWithId = /id\s*=/.test(headingAttrs)
+    ? faqHeading[0]
+    : faqHeading[0].replace(/^<h2\b/i, '<h2 id="common-questions"');
+
+  return `${source.slice(0, faqHeading.index)}${headingWithId}${accordion}${source.slice(sectionEnd)}`;
+}
+
+// Post-page-only style overrides. globals.css is owned by the parallel
+// list-page workstream, so the prompt-code contrast and in-body FAQ
+// accordion styles live here. This <style> renders after the global
+// stylesheet, so equal-specificity rules win over it.
+const POST_PAGE_STYLES = `
+.article-prose .prompt-code-shell { background: #101a30; }
+.article-prose .prompt-code-shell pre { background: #16223c; }
+.article-prose .prompt-code-shell pre code { color: #ffffff; font-size: 1rem; font-weight: 600; line-height: 1.8; }
+.article-prose .article-code-shell pre code { font-size: 0.95rem; line-height: 1.75; }
+@media (min-width: 1024px) {
+  .article-prose[data-prompt-gallery="true"] > div > .article-gallery-prompt-card .prompt-code-shell pre code { font-size: 1rem; line-height: 1.8; }
+}
+.article-faq-list { margin-top: 2rem; overflow: hidden; border: 1px solid var(--border); border-radius: 1rem; background: var(--bg-card); }
+.article-faq-item { border-bottom: 1px solid var(--border); }
+.article-faq-item:last-child { border-bottom: 0; }
+.article-faq-question { display: flex; cursor: pointer; list-style: none; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; text-align: left; font-size: 1rem; font-weight: 700; line-height: 1.5; color: var(--text-primary); }
+.article-faq-question::-webkit-details-marker { display: none; }
+.article-faq-question:hover { color: #ff6b35; background: rgba(255, 107, 53, 0.05); }
+.article-faq-chevron { display: inline-flex; height: 2rem; width: 2rem; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 999px; color: #ff6b35; font-size: 1.25rem; line-height: 1; transition: transform 0.2s ease; }
+.article-faq-item[open] .article-faq-chevron { transform: rotate(90deg); }
+.article-faq-answer { padding: 0 1.25rem 1.25rem; }
+.article-faq-answer p { margin: 0; color: var(--text-secondary); font-size: 1rem; line-height: 1.8; }
+`;
+
 function renderArticleBlocksHtml(post) {
   // Always prefer content_html (canonical rendered HTML from Neon).
   // Fallback to content only for backward compatibility with legacy generated data.
@@ -119,7 +238,7 @@ function renderArticleBlocksHtml(post) {
     return !title || normalizedHeading === title ? '' : match.replace(/^(\s*)<h1\b/i, '$1<h2').replace(/<\/h1>\s*$/i, '</h2>');
   });
 
-  return htmlWithoutDuplicateTitle.replace(/<pre([^>]*)><code([^>]*)>([\s\S]*?)<\/code><\/pre>/gi, (match, preAttrs, codeAttrs, codeHtml) => {
+  const withPromptBlocks = htmlWithoutDuplicateTitle.replace(/<pre([^>]*)><code([^>]*)>([\s\S]*?)<\/code><\/pre>/gi, (match, preAttrs, codeAttrs, codeHtml) => {
     const plainCode = String(codeHtml || '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/g, ' ')
@@ -136,6 +255,9 @@ function renderArticleBlocksHtml(post) {
 
     return `<div class="article-code-shell"><button type="button" class="article-copy-button" data-copy-code aria-label="${label}">${label}</button><pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre></div>`;
   });
+
+  // Render-time presentation fixes only; wording and prompts are untouched.
+  return dropRedundantTableColumns(convertInlineFaqToAccordion(withPromptBlocks));
 }
 
 const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
@@ -163,7 +285,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
       contentHtml: initialPayload.post.contentHtml || initialPayload.post.content || '',
       content: initialPayload.post.contentText || initialPayload.post.content || '',
     });
-    setRelatedPosts(Array.isArray(initialPayload.relatedPosts) ? initialPayload.relatedPosts.slice(0, 3) : []);
+    setRelatedPosts(Array.isArray(initialPayload.relatedPosts) ? initialPayload.relatedPosts.slice(0, 6) : []);
     setError(null);
     setLoading(false);
   }, [initialPayload]);
@@ -253,6 +375,9 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
     && (articleHtml.match(/<img\b/gi) || []).length >= 4
   ), [articleHtml]);
   const featuredPosts = useMemo(() => relatedPosts.slice(0, 3), [relatedPosts]);
+  // Related Read shows the next three related posts, never the sidebar's
+  // Featured three, so the two sections never duplicate each other.
+  const relatedReadPosts = useMemo(() => relatedPosts.slice(3, 6), [relatedPosts]);
   const suggestedPrompts = useMemo(() => {
     return [...freePrompts]
       .filter((item) => {
@@ -262,7 +387,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
       .sort((a, b) => stablePromptScore(post?.slug, a.title) - stablePromptScore(post?.slug, b.title))
       .slice(0, 3);
   }, [freePrompts, post?.slug]);
-  const previousPost = featuredPosts[0] || null;
+  const hasInlineFaq = articleHtml.includes('article-faq-list');
   const topicItems = useMemo(() => {
     const source = [post?.category, ...(Array.isArray(post?.tags) ? post.tags : [])]
       .map((item) => String(item || '').trim())
@@ -553,7 +678,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
 
           <main id="main-content" className="pb-16 sm:pb-24">
             <article className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-12">
-              <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-16">
+              <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12">
                 <div className="min-w-0">
                   <Button
                     asChild
@@ -576,7 +701,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                   </span>
                 </div>
 
-                <h1 className="max-w-none text-[clamp(2.15rem,10vw,3rem)] font-semibold leading-[1.08] tracking-normal text-[var(--text-primary)] sm:text-[clamp(2.75rem,6vw,4.25rem)] lg:max-w-[16ch]">
+                <h1 className="max-w-none text-[clamp(1.75rem,6vw,2.375rem)] font-semibold leading-[1.15] tracking-normal text-[var(--text-primary)] sm:text-[clamp(2rem,4.5vw,2.75rem)] lg:max-w-[24ch]">
                   {post.title}
                 </h1>
 
@@ -599,36 +724,40 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                   <button
                     type="button"
                     onClick={() => handleShare('twitter')}
+                    aria-label="Post this article on X"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:text-slate-300"
                   >
                     <Twitter className="h-3.5 w-3.5" />
-                    Post
+                    Post on X
                   </button>
                   <button
                     type="button"
                     onClick={() => handleShare('linkedin')}
+                    aria-label="Share this article on LinkedIn"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:text-slate-300"
                   >
                     <Linkedin className="h-3.5 w-3.5" />
-                    Share
+                    Share on LinkedIn
                   </button>
                   <button
                     type="button"
                     onClick={() => handleShare('facebook')}
+                    aria-label="Share this article on Facebook"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:text-slate-300"
                   >
                     <Facebook className="h-3.5 w-3.5" />
-                    Share It
+                    Share on Facebook
                   </button>
                   <button
                     type="button"
                     onClick={handleCopyLink}
+                    aria-label="Copy link to this article"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:text-slate-300"
                   >
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
                     {copied ? 'Copied' : 'Copy Link'}
                   </button>
-                  {faqs.length > 0 && (
+                  {(faqs.length > 0 || hasInlineFaq) && (
                     <a
                       href="#common-questions"
                       className="col-span-2 inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-primary/40 hover:text-primary dark:text-slate-300 sm:col-span-1"
@@ -657,6 +786,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                   </figure>
                 ) : null}
 
+                <style>{POST_PAGE_STYLES}</style>
                 <div
                   className="article-prose mt-7 min-w-0 overflow-hidden sm:mt-8"
                   data-article-body="true"
@@ -703,7 +833,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                     </div>
                   </section>
                 )}
-                {faqs.length > 0 && (
+                {faqs.length > 0 && !hasInlineFaq && (
                   <section id="common-questions" className="mt-12 border-t border-[var(--border)] pt-10 sm:mt-16 sm:pt-12">
                     <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
                       Common Questions
@@ -748,7 +878,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                   </div>
                 )}
 
-                <div className="mt-12 grid gap-8 lg:mt-14 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="mt-12 lg:mt-14">
                   <Card className="rounded-none border-x-0 border-y border-[var(--border)] bg-transparent shadow-none">
                     <CardContent className="px-0 py-8">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -765,7 +895,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                           <p className="text-xl font-semibold text-[var(--text-primary)]">
                             <Link href={authorUrl} className="hover:text-primary">{authorName}</Link>
                           </p>
-                          <p className={`mt-2 max-w-2xl text-base leading-7 text-[var(--text-secondary)] sm:text-lg sm:leading-relaxed ${isPromptShe ? 'line-clamp-5' : ''}`}>
+                          <p className="mt-2 max-w-2xl text-base leading-7 text-[var(--text-secondary)] sm:text-lg sm:leading-relaxed">
                             {authorBlurb}
                           </p>
                         </div>
@@ -800,53 +930,59 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                     </CardContent>
                   </Card>
 
-                  {previousPost && (
-                    <div>
-                      <h2 className="mb-4 text-2xl font-bold leading-tight text-[var(--text-primary)] md:text-3xl">
-                        Related Read
-                      </h2>
-                      <Link
-                        href={`/blog/${previousPost.slug}`}
-                        className="group block overflow-hidden border border-[var(--border)] bg-[var(--bg-card)] transition hover:border-[var(--border)]"
-                      >
-                        <div className="aspect-video w-full overflow-hidden flex items-center justify-center">
-                          <ResponsiveImage
-                            src={
-                              previousPost.image ||
-                              previousPost.coverImage ||
-                              previousPost.featuredImage ||
-                              '/images/prompts/cinematic-sunset-beach-portrait.webp'
-                            }
-                            alt={previousPost.title}
-                            rounded={false}
-                            className="h-full w-full object-cover object-center transition duration-500 group-hover:scale-[1.02]"
-                            loading="lazy"
-                            sizes="280px"
-                          />
-                        </div>
-                        <div className="p-4">
-                          <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
-                            Related Read
-                          </p>
-                          <p className="mt-3 text-lg leading-snug text-slate-950 transition group-hover:text-primary dark:text-white dark:group-hover:text-primary">
-                            {previousPost.title}
-                          </p>
-                        </div>
-                      </Link>
-                    </div>
-                  )}
                 </div>
+
+                {relatedReadPosts.length > 0 && (
+                  <section className="mt-12 lg:mt-14">
+                    <h2 className="text-2xl font-bold leading-tight text-[var(--text-primary)] md:text-3xl">
+                      Related Read
+                    </h2>
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {relatedReadPosts.map((relatedPost) => (
+                        <Link
+                          key={relatedPost.slug}
+                          href={`/blog/${relatedPost.slug}`}
+                          className="group block overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-card)] transition hover:border-primary"
+                        >
+                          <div className="aspect-video w-full overflow-hidden">
+                            <ResponsiveImage
+                              src={
+                                relatedPost.image ||
+                                relatedPost.coverImage ||
+                                relatedPost.featuredImage ||
+                                '/images/prompts/cinematic-sunset-beach-portrait.webp'
+                              }
+                              alt={relatedPost.title}
+                              rounded={false}
+                              className="h-full w-full object-cover object-center transition duration-500 group-hover:scale-[1.02]"
+                              loading="lazy"
+                              sizes="(max-width: 640px) 92vw, (max-width: 1024px) 45vw, 400px"
+                            />
+                          </div>
+                          <div className="p-4">
+                            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+                              Related Read
+                            </p>
+                            <p className="mt-3 line-clamp-3 text-base leading-snug text-slate-950 transition group-hover:text-primary dark:text-white dark:group-hover:text-primary">
+                              {relatedPost.title}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
               </div>
 
               <aside className="hidden lg:block lg:pt-20">
-                <div className="space-y-10 lg:sticky lg:top-24">
+                <div className="space-y-10">
                   {featuredPosts.length > 0 && (
                     <section>
-                      <h2 className="text-4xl tracking-[-0.05em] text-slate-950 dark:text-white">Featured</h2>
+                      <h2 className="text-2xl font-semibold tracking-normal text-slate-950 dark:text-white">Featured</h2>
 
                       <div className="mt-5 space-y-3">
-                        {featuredPosts.map((featuredPost) => (
+                        {featuredPosts.map((featuredPost, featuredIndex) => (
                           <Link
                             key={featuredPost.slug}
                             href={`/blog/${featuredPost.slug}`}
@@ -863,7 +999,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                                 alt={featuredPost.title}
                                 rounded={false}
                                 className="absolute inset-0 h-full w-full object-cover object-center"
-                                loading="lazy"
+                                loading={featuredIndex === 0 ? 'eager' : 'lazy'}
                                 sizes="96px"
                               />
                             </div>
@@ -880,7 +1016,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
 
                   {topicLinks.length > 0 && (
                     <section className="border-t border-slate-200 pt-8 dark:border-white/10">
-                      <h2 className="text-4xl tracking-[-0.05em] text-slate-950 dark:text-white">Blog by Topics</h2>
+                      <h2 className="text-2xl font-semibold tracking-normal text-slate-950 dark:text-white">Blog by Topics</h2>
                       <div className="mt-5 flex flex-wrap gap-x-4 gap-y-3">
                         {topicLinks.map((topic) => (
                           <Link
@@ -927,7 +1063,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
           </article>
 
           {/* Newsletter Section */}
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
             <NewsletterSignup variant="compact" />
           </div>
         </main>

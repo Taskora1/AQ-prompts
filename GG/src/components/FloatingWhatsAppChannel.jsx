@@ -30,7 +30,7 @@ export default function FloatingWhatsAppChannel() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Join the AQPrompts WhatsApp channel (opens in a new tab)"
-      className={`wa-pulse-ring fixed right-4 top-1/2 z-[60] inline-flex min-h-11 -translate-y-1/2 items-center rounded-full bg-[#25d366] py-1 text-xs font-black text-white shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition-[transform,background-color,box-shadow,padding] duration-300 hover:scale-105 hover:bg-[#20bd5a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#25d366]/40 focus-visible:ring-offset-2 sm:right-6 ${
+      className={`wa-pulse-ring fixed bottom-5 right-4 z-40 inline-flex min-h-11 items-center rounded-full bg-[#25d366] py-1 text-xs font-black text-white shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition-[transform,background-color,box-shadow,padding] duration-300 hover:scale-105 hover:bg-[#20bd5a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.25)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#25d366]/40 focus-visible:ring-offset-2 sm:right-6 ${
         showLabel ? 'gap-1.5 pl-3 pr-1 sm:gap-2 sm:pl-3.5' : 'justify-center px-1'
       }`}
     >

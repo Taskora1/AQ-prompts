@@ -22,9 +22,17 @@ const ResponsiveImage = ({
   quality,
   preserveAspect = false,
   responsiveCloudinary = false,
+  // When true, the image does not zoom on hover. The zoom scales the image
+  // inside an overflow-hidden wrapper, which clips a few percent off every
+  // edge while hovered — enough to cut off text baked into a cover image
+  // near its edges. Blog list cards pass this; everything else keeps the
+  // existing zoom (default false = no behaviour change).
+  disableHoverZoom = false,
 }) => {
   const roundingClass = rounded ? 'rounded-[28px]' : 'rounded-none';
   const shouldFill = !width || !height;
+  const hoverZoomClass = disableHoverZoom ? '' : 'group-hover:scale-[1.05]';
+  const wrapperHoverZoomClass = disableHoverZoom ? '' : 'hover:scale-[1.02]';
   const canUseBlur = typeof src === 'string' && !src.endsWith('.svg');
   const blurProps = canUseBlur ? { placeholder: 'blur', blurDataURL: BLUR_DATA_URL } : {};
   const responsiveImage = getStaticResponsiveImage(src);
@@ -35,7 +43,7 @@ const ResponsiveImage = ({
   const optimizedSrc = optimizeCloudinaryUrl(src);
 
   return (
-    <div className={`relative group w-full ${preserveAspect ? '' : 'h-full'} overflow-hidden ${roundingClass} bg-[#f9fafb] dark:bg-[#111118] shadow-[0_24px_60px_rgba(255,107,53,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.3)] transition-all duration-500 hover:shadow-[0_32px_80px_rgba(255,107,53,0.2)] dark:hover:shadow-[0_32px_80px_rgba(0,0,0,0.5)] hover:scale-[1.02]`}>
+    <div className={`relative group w-full ${preserveAspect ? '' : 'h-full'} overflow-hidden ${roundingClass} bg-[#f9fafb] dark:bg-[#111118] shadow-[0_24px_60px_rgba(255,107,53,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.3)] transition-all duration-500 hover:shadow-[0_32px_80px_rgba(255,107,53,0.2)] dark:hover:shadow-[0_32px_80px_rgba(0,0,0,0.5)] ${wrapperHoverZoomClass}`}>
       <div className="absolute inset-0 bg-[#ff6b3520] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
       {responsiveImage ? (
         <img
@@ -45,7 +53,7 @@ const ResponsiveImage = ({
           alt={alt}
           width={width || DEFAULT_IMAGE_WIDTH}
           height={height || DEFAULT_IMAGE_HEIGHT}
-          className={`${className} ${preserveAspect ? 'h-auto w-full object-contain' : 'h-full w-full object-cover'} transition-transform duration-700 group-hover:scale-[1.05]`}
+          className={`${className} ${preserveAspect ? 'h-auto w-full object-contain' : 'h-full w-full object-cover'} transition-transform duration-700 ${hoverZoomClass}`}
           loading={priority ? 'eager' : loading}
           decoding="async"
           {...(fetchPriority ? { fetchPriority } : {})}
@@ -57,7 +65,7 @@ const ResponsiveImage = ({
           alt={alt}
           width={width || DEFAULT_IMAGE_WIDTH}
           height={height || DEFAULT_IMAGE_HEIGHT}
-          className={`${className} h-auto w-full object-contain transition-transform duration-700 group-hover:scale-[1.05]`}
+          className={`${className} h-auto w-full object-contain transition-transform duration-700 ${hoverZoomClass}`}
           sizes={sizes}
           loading={priority ? 'eager' : loading}
           decoding="async"
@@ -69,7 +77,7 @@ const ResponsiveImage = ({
           {...(srcSet ? { srcSet } : {})}
           alt={alt}
           fill
-          className={`${preserveAspect ? 'h-auto w-full object-contain' : 'object-cover'} transition-transform duration-700 group-hover:scale-[1.05] ${className}`}
+          className={`${preserveAspect ? 'h-auto w-full object-contain' : 'object-cover'} transition-transform duration-700 ${hoverZoomClass} ${className}`}
           loading={priority ? undefined : loading}
           priority={priority}
           quality={quality}
@@ -82,7 +90,7 @@ const ResponsiveImage = ({
           src={optimizedSrc}
           {...(srcSet ? { srcSet } : {})}
           alt={alt}
-          className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05] ${className}`}
+          className={`h-full w-full object-cover transition-transform duration-700 ${hoverZoomClass} ${className}`}
           loading={priority ? undefined : loading}
           priority={priority}
           quality={quality}

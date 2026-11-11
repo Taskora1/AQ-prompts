@@ -66,11 +66,15 @@ test('homepage H1 and metadata target ChatGPT photo prompts', async () => {
   assert.match(home, /PROMPT_BASE_PATH\}\/photo-editing/);
 });
 
-test('about prompt count is dynamically rendered from the published prompt total', async () => {
+test('about prompt count is rendered from the published prompt total (ISR, 24h)', async () => {
   const route = await readFile(new URL('../app/about/page.jsx', import.meta.url), 'utf8');
   const page = await readFile(new URL('../src/route-views/AboutPage.jsx', import.meta.url), 'utf8');
 
-  assert.match(route, /dynamic = 'force-dynamic'/);
+  // Was force-dynamic; now ISR (24h) with on-demand revalidation via
+  // admin — the count still comes from the published prompt total.
+  assert.match(route, /export const revalidate = 86400/);
+  assert.doesNotMatch(route, /dynamic = 'force-dynamic'/);
+  assert.match(route, /getPublishedPromptCount\(\)/);
   assert.match(page, /\$\{promptCount\}\+/);
 });
 

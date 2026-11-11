@@ -513,7 +513,7 @@ export async function getPublishedBlogPostsForRelated(
         'epoch'::timestamptz
       ) DESC,
       title COLLATE "C" ASC
-    LIMIT 3
+    LIMIT 6
   `, [safeSlug, category, tags]);
 
   return result.rows.map((row) => ({

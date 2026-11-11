@@ -234,7 +234,7 @@ function ArticleInlineImage({ src, alt, title, disclosure, showDisclosure = true
             width={1200}
             height={675}
             title={title || undefined}
-            className="block h-auto w-full object-contain"
+            className="mx-auto block h-auto max-h-[560px] w-auto max-w-full object-contain"
             decoding="async"
             loading="lazy"
           />
@@ -246,7 +246,7 @@ function ArticleInlineImage({ src, alt, title, disclosure, showDisclosure = true
             height={675}
             title={title || undefined}
             sizes="(min-width: 768px) 768px, 100vw"
-            className="block h-auto w-full object-contain"
+            className="mx-auto block h-auto max-h-[560px] w-auto max-w-full object-contain"
             loading="lazy"
           />
         )}

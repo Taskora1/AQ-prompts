@@ -332,10 +332,12 @@ test('Text public library is disabled without deleting its stored prompt data or
   assert.match(copy, /navigator\.clipboard\.writeText\(text\)/);
   assert.match(copy, /aria-live="polite"/);
   assert.match(copy, /Copy failed/);
-  const workspace = await readFile(new URL('../src/components/prompts/TextPromptLibraryExperience.jsx', import.meta.url), 'utf8');
-  assert.match(workspace, /navigator\.clipboard\.readText/);
-  assert.match(workspace, /Clear/);
-  assert.match(workspace, /Copy from workspace/);
+  // The workspace experience component was removed (unreferenced
+  // anywhere): the public text library stays disabled without it.
+  await assert.rejects(
+    readFile(new URL('../src/components/prompts/TextPromptLibraryExperience.jsx', import.meta.url)),
+    { code: 'ENOENT' },
+  );
   assert.doesNotMatch(card, /getPromptUrl|href=.*prompt/i);
   assert.doesNotMatch(sitemap, /text-prompts|hasIndexablePublicTextPrompts/);
   const adminList = await readFile(new URL('../app/admin/text-prompts/page.jsx', import.meta.url), 'utf8');

@@ -170,7 +170,9 @@ export async function getBlogPostSnapshotBySlug(slug) {
     category: normalizedPost.category,
     tags: normalizedPost.tags,
   });
-  const rawRelatedPosts = findRelatedPosts(normalizedPost, relatedCandidates, 3);
+  // Six related posts: the first three feed the sidebar "Featured" list and
+  // the next three feed the "Related Read" section, so the two never repeat.
+  const rawRelatedPosts = findRelatedPosts(normalizedPost, relatedCandidates, 6);
   const relatedPosts = rawRelatedPosts.map((post) => ({
     ...normalizePost(post),
     contentHtml: '',

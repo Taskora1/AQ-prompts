@@ -19,7 +19,7 @@ const categoryLinks = [
 
 const footerGroups = [
   {
-    title: 'AI Prompt Categories',
+    title: 'Prompt Categories',
     links: categoryLinks,
   },
   {
@@ -97,7 +97,7 @@ export default function Footer() {
                 aria-expanded={isOpen}
                 aria-controls={`footer-group-${index}`}
               >
-                <h2 className="text-sm font-black uppercase tracking-[0.16em] text-slate-950 dark:text-white">
+                <h2 className="whitespace-nowrap text-sm font-black uppercase tracking-[0.16em] text-slate-950 dark:text-white">
                   {group.title}
                 </h2>
                 <span
@@ -114,7 +114,7 @@ export default function Footer() {
                 }`}
               >
                 <nav aria-label={group.title} className="overflow-hidden">
-                  <h2 className="hidden text-sm font-black uppercase tracking-[0.16em] text-slate-950 md:block dark:text-white">
+                  <h2 className="hidden whitespace-nowrap text-sm font-black uppercase tracking-[0.16em] text-slate-950 md:block dark:text-white">
                     {group.title}
                   </h2>
                   <ul className="space-y-2 pb-4 md:mt-3 md:pb-0">
