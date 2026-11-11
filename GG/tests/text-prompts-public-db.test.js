@@ -117,6 +117,23 @@ let originalPostgresUrl;
 let originalPrismaUrl;
 let originalPool;
 
+// The text library is computed in JS now (see queryPublicTextLibrary in
+// src/lib/text-prompts-public-db.js): the database supplies only the
+// eligible prompts (one narrow SELECT) and the prompt/category junction
+// rows (one SELECT), and the category aggregation, summary, search /
+// category matching, sorting and paging happen in JS. The mock answers
+// those two SELECTs (plus the SELECT EXISTS indexability probe) from the
+// promptRows fixture. The fixture prompts have a single category each,
+// which is their primary category; assigned (non-primary) junction rows
+// are the fixture categories after the first.
+const categoryIdsBySlug = new Map();
+function categoryIdForSlug(slug) {
+  if (!categoryIdsBySlug.has(slug)) {
+    categoryIdsBySlug.set(slug, 100 + categoryIdsBySlug.size);
+  }
+  return categoryIdsBySlug.get(slug);
+}
+
 function resultFor(sql, values = []) {
   if (/SELECT EXISTS/i.test(sql)) {
     return {
@@ -136,56 +153,45 @@ function resultFor(sql, values = []) {
     && !row.shouldNoindex
     && row.isPublicEligible
   );
-  const hasCategory = /UNNEST\(category_names, category_slugs\)/i.test(sql);
-  const category = hasCategory ? values[0] : '';
-  const search = /POSITION\(/i.test(sql) ? values[hasCategory ? 1 : 0] : '';
-  let rows = eligibleRows.filter((row) =>
-    (!category || row.categorySlugs.includes(category))
-    && (!search || [
-      row.title,
-      row.prompt,
-      row.intro,
-      row.useCase,
-      row.generationTestedTool,
-      ...row.tags,
-      ...row.categories,
-    ].filter(Boolean).join(' ').toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-  );
-
-  if (/AS "eligibleTotal"/i.test(sql)) {
+  // The eligible-prompts SELECT: one narrow row per eligible prompt, with
+  // the primary category joined in.
+  if (/FROM prompts p/i.test(sql) && /LEFT JOIN categories primary_category/i.test(sql)) {
     return {
-      rows: [{
-        eligibleTotal: eligibleRows.length,
-        testedTools: [...new Set(eligibleRows.map((row) => row.generationTestedTool.trim()).filter(Boolean))],
-      }],
+      rows: eligibleRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        prompt: row.prompt,
+        slug: row.slug,
+        intro: row.intro,
+        useCase: row.useCase,
+        tags: row.tags,
+        generationTestedTool: row.generationTestedTool,
+        createdAt: row.createdAt,
+        createdAtSort: row.createdAt,
+        primaryCategoryId: row.categorySlugs.length > 0
+          ? categoryIdForSlug(row.categorySlugs[0])
+          : null,
+        primaryCategoryName: row.categories[0] || null,
+        primaryCategorySlug: row.categorySlugs[0] || null,
+      })),
     };
   }
-  if (/SELECT category\.slug/i.test(sql)) {
-    const counts = new Map();
+  // The junction SELECT: assigned categories per prompt (the primary
+  // arrives on the prompts row, so it is excluded here by the caller).
+  if (/FROM prompt_categories pc/i.test(sql)) {
+    const rows = [];
     for (const row of eligibleRows) {
-      row.categories.forEach((name, index) => {
-        const slug = row.categorySlugs[index];
-        if (!name || !slug) return;
-        const key = `${slug}\0${name}`;
-        const current = counts.get(key) || { slug, name, count: 0 };
-        current.count += 1;
-        counts.set(key, current);
+      row.categories.slice(1).forEach((name, index) => {
+        rows.push({
+          promptId: row.id,
+          position: index + 1,
+          categoryId: categoryIdForSlug(row.categorySlugs[index + 1]),
+          name,
+          slug: row.categorySlugs[index + 1],
+        });
       });
     }
-    return { rows: [...counts.values()] };
-  }
-  if (/SELECT COUNT\(\*\)::int AS total/i.test(sql)) {
-    return { rows: [{ total: rows.length }] };
-  }
-
-  if (/FROM categorized_prompts/i.test(sql)) {
-    if (/ORDER BY LOWER\(title\), id/i.test(sql)) {
-      rows = rows.sort((left, right) => left.title.localeCompare(right.title));
-    } else {
-      rows = rows.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-    }
-    const [limit, offset] = values.slice(-2);
-    return { rows: rows.slice(offset, offset + limit) };
+    return { rows };
   }
   return { rows: [] };
 }
@@ -226,20 +232,34 @@ after(() => {
   else globalThis.__dbPgPool = originalPool;
 });
 
-test('public Text queries filter published, eligible rows in SQL and select page-only fields', async () => {
+test('public Text queries fetch eligible rows once and compute the library in JS', async () => {
   const result = await getPublicTextPromptLibrary();
-  const queriesToCheck = queries.filter(({ sql }) => /WITH eligible_prompts/i.test(sql));
-  assert.equal(queriesToCheck.length, 4);
-  for (const query of queriesToCheck) {
-    assert.match(query.sql, /p\.library_type = 'text'/i);
-    assert.match(query.sql, /p\.status = 'published'/i);
-    assert.match(query.sql, /p\.is_public_eligible = true/i);
-    assert.match(query.sql, /COALESCE\(p\.should_noindex, false\) = false/i);
-    assert.doesNotMatch(query.sql, /SELECT\s+\*/i);
+  // Two SELECTs, no CTEs: the eligible prompts and the junction rows.
+  assert.equal(queries.length, 2);
+  const promptsQuery = queries.find(({ sql }) => /FROM prompts p/i.test(sql));
+  const junctionQuery = queries.find(({ sql }) => /FROM prompt_categories pc/i.test(sql));
+  assert.ok(promptsQuery);
+  assert.ok(junctionQuery);
+  // The eligibility filter still lives in SQL, on one narrow SELECT.
+  assert.match(promptsQuery.sql, /p\.library_type = 'text'/i);
+  assert.match(promptsQuery.sql, /p\.status = 'published'/i);
+  assert.match(promptsQuery.sql, /p\.is_public_eligible = true/i);
+  assert.match(promptsQuery.sql, /COALESCE\(p\.should_noindex, false\) = false/i);
+  assert.match(promptsQuery.sql, /SELECT\s+p\.id,\s+p\.title,\s+p\.prompt,\s+p\.slug,\s+p\.intro/i);
+  assert.doesNotMatch(promptsQuery.sql, /SELECT\s+\*/i);
+  assert.doesNotMatch(promptsQuery.sql, /SELECT[\s\S]*p\.images|p\.og_image/i);
+  assert.match(junctionQuery.sql, /JOIN categories c ON c\.id = pc\.category_id/i);
+  // The old CTE machinery (eligible_prompts / categorized_prompts with
+  // UNNEST / jsonb_array_elements_text / POSITION, and SQL-side LIMIT /
+  // OFFSET paging) is gone: aggregation, summary, matching, sorting and
+  // paging happen in JS now.
+  for (const query of queries) {
+    assert.doesNotMatch(query.sql, /WITH eligible_prompts/i);
+    assert.doesNotMatch(query.sql, /FROM categorized_prompts/i);
+    assert.doesNotMatch(query.sql, /UNNEST\(/i);
+    assert.doesNotMatch(query.sql, /jsonb_array_elements_text/i);
+    assert.doesNotMatch(query.sql, /LIMIT \$\d+ OFFSET \$\d+/i);
   }
-  const pageQuery = queries.find(({ sql }) => /FROM categorized_prompts/i.test(sql) && /LIMIT \$1 OFFSET \$2/i.test(sql));
-  assert.match(pageQuery.sql, /SELECT id, title, prompt, slug, intro/i);
-  assert.doesNotMatch(pageQuery.sql, /SELECT[\s\S]*p\.images|p\.og_image/i);
   assert.equal(result.total, 2);
   assert.equal(result.prompts.length, 2);
   assert(!result.prompts.some((prompt) => prompt.title.includes('Draft')));

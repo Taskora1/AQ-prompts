@@ -216,7 +216,7 @@ export function normalizePrompt(
     title,
     slug: cleanText(item.slug) || slugifyPrompt(title),
     libraryType: item.libraryType === 'text' ? 'text' : 'photo',
-    isSecretPrompt: item.isSecretPrompt === true || item.is_secret_prompt === true,
+    isSecretPrompt: item.isSecretPrompt === true || item.isSecretPrompt === 1 || item.is_secret_prompt === true || item.is_secret_prompt === 1,
     prompt: cleanPublicPromptText(item.prompt),
     image: publicImages[0] || getSafePublicMediaSource(item.image, mediaContext),
     images: publicImages,
@@ -434,20 +434,20 @@ async function queryPromptRowsSlim({
   const db = getPgPool();
   const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
 
-  // The paginated path stays on the per-row LATERAL aggregate: with the
-  // composite index it runs only for the returned rows (~12 executions,
+  // The paginated path stays on the per-row scalar subqueries: with the
+  // composite index they run only for the returned rows (~12 executions,
   // ~0.4 ms), while a GROUP BY would have to aggregate every matching row
   // before sorting and limiting. Full-table fetches (no limit) use the
   // GROUP BY form instead: one aggregate over the junction table, ~55%
-  // faster and ~92% fewer buffers than 576 LATERAL executions. Both forms
+  // faster and ~92% fewer buffers than 576 per-row executions. Both forms
   // return identical rows — same aggregate order (pc.position, c.id), same
   // LEFT JOIN semantics. The FILTER on the GROUP BY aggregates keeps an
   // empty category list empty instead of [null]: JSONB_AGG includes NULL
   // inputs as JSON nulls, and a prompt with no categories contributes
   // exactly one all-NULL joined row.
-  // NOTE: sort=random with a limit still runs the LATERAL for every
-  // matching row before the md5 sort (the planner cannot push LIMIT past
-  // it), so the random pick does NOT go through this function — see
+  // NOTE: sort=random with a limit still runs the per-row subqueries for
+  // every matching row before the md5 sort (the planner cannot push LIMIT
+  // past them), so the random pick does NOT go through this function — see
   // getRandomSlimPrompts, which sorts ids only and fetches the picked rows
   // by id.
   const useGroupBy = limit === null;
@@ -466,29 +466,30 @@ async function queryPromptRowsSlim({
     orderClause = `ORDER BY ${orderExpression} LIMIT ${limitParam} OFFSET ${offsetParam}`;
   }
 
+  // Correlated scalar subqueries instead of LATERAL: SQLite has no
+  // LATERAL, and the same shape runs on both backends (the adapter
+  // translates JSONB_AGG on the D1 path). The COALESCE fallback to the
+  // legacy p.categories column is preserved: the adapter wraps the
+  // aggregate in NULLIF(..., '[]'), so an empty subquery yields NULL
+  // exactly as JSONB_AGG did on Postgres.
+  const categorySubquery = (column) => `(SELECT JSONB_AGG(c.${column} ORDER BY pc.position, c.id)
+      FROM prompt_categories pc
+      JOIN categories c ON c.id = pc.category_id
+      WHERE pc.prompt_id = p.id)`;
   const categoriesExpr = useGroupBy
     ? `COALESCE(JSONB_AGG(c.name ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), p.categories, '[]'::jsonb) AS categories`
-    : `COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories`;
+    : `COALESCE(${categorySubquery('name')}, p.categories, '[]'::jsonb) AS categories`;
   const categoryIdsExpr = useGroupBy
     ? `COALESCE(JSONB_AGG(c.id ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categoryIds"`
-    : `COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds"`;
+    : `COALESCE(${categorySubquery('id')}, '[]'::jsonb) AS "categoryIds"`;
   const categorySlugsExpr = useGroupBy
     ? `COALESCE(JSONB_AGG(c.slug ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categorySlugs"`
-    : `COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs"`;
+    : `COALESCE(${categorySubquery('slug')}, '[]'::jsonb) AS "categorySlugs"`;
   const categoryJoin = useGroupBy
     ? `
     LEFT JOIN prompt_categories pc ON pc.prompt_id = p.id
     LEFT JOIN categories c ON c.id = pc.category_id`
-    : `
-    LEFT JOIN LATERAL (
-      SELECT
-        JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-        JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
-        JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
-      FROM prompt_categories pc
-      JOIN categories c ON c.id = pc.category_id
-      WHERE pc.prompt_id = p.id
-    ) assigned_categories ON true`;
+    : '';
   const groupByClause = useGroupBy ? 'GROUP BY p.id, primary_category.id' : '';
 
   const result = await db.query({ text: `
@@ -643,10 +644,10 @@ export async function getNewsletterWelcomePrompts() {
  * (the ids-first pattern from the listing payload). The old
  * ORDER BY RANDOM() path aggregated all 576 rows with the GROUP BY form
  * (5.8 ms / 221 buffers), and routing the pick through the paginated
- * md5-seed query was slower still: the per-row LATERAL aggregate ran for
+ * md5-seed query was slower still: the per-row subqueries ran for
  * all 576 rows before the md5 sort (10.4 ms / 2,562 buffers). The ids-only
  * sort is ~1.2 ms (narrow scan, no TOAST, no junction join) and the row
- * fetch is one PK lookup + LATERAL per pick. Same selection distribution
+ * fetch is one PK lookup + subquery per pick. Same selection distribution
  * as the md5-seed shuffle: a different seed picks a different set.
  * When no seed is given one is generated server-side, so the weekly cron
  * (which passes none) still gets a fresh pick each run.
@@ -741,28 +742,28 @@ export async function getSlimPromptsByIds(ids = []) {
         p.images,
         p.image_alt_texts ->> '0' AS "imageAlt",
         COALESCE(primary_category.name, p.category) AS category,
-        COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+        COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories,
         p.use_case AS "useCase",
         p.tags,
         p.status,
         p.primary_category_id AS "primaryCategoryId",
         primary_category.slug AS "primaryCategorySlug",
-        COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds",
-        COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs",
+        COALESCE((SELECT JSONB_AGG(c.id ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categoryIds",
+        COALESCE((SELECT JSONB_AGG(c.slug ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categorySlugs",
         p.created_at::text AS "createdAt",
         p.intro,
         p.updated_at::text AS "updatedAt"
       FROM prompts p
       LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
-      LEFT JOIN LATERAL (
-        SELECT
-          JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-          JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
-          JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
-        FROM prompt_categories pc
-        JOIN categories c ON c.id = pc.category_id
-        WHERE pc.prompt_id = p.id
-      ) assigned_categories ON true
       WHERE p.status = 'published'
         AND p.library_type = 'photo'
         AND p.id = ANY($1::bigint[])
@@ -904,18 +905,15 @@ export async function getTrendingPromptsByIds(ids = []) {
         p.images,
         p.image_alt_texts ->> '0' AS "imageAlt",
         COALESCE(primary_category.name, p.category) AS category,
-        COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+        COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories,
         p.use_case AS "useCase",
         p.created_at::text AS "createdAt"
       FROM prompts p
       LEFT JOIN categories primary_category
         ON primary_category.id = p.primary_category_id
-      LEFT JOIN LATERAL (
-        SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names
-        FROM prompt_categories pc
-        JOIN categories c ON c.id = pc.category_id
-        WHERE pc.prompt_id = p.id
-      ) assigned_categories ON true
       WHERE p.status = 'published'
         AND p.library_type = 'photo'
         AND p.id = ANY($1::bigint[])
@@ -1055,7 +1053,7 @@ export function normalizePromptSlim(
     title,
     slug: cleanText(item.slug) || slugifyPrompt(title),
     libraryType: item.libraryType === 'text' ? 'text' : 'photo',
-    isSecretPrompt: item.isSecretPrompt === true || item.is_secret_prompt === true,
+    isSecretPrompt: item.isSecretPrompt === true || item.isSecretPrompt === 1 || item.is_secret_prompt === true || item.is_secret_prompt === 1,
     prompt: cleanPublicPromptText(item.prompt),
     image: publicImages[0] || '',
     images: publicImages,
@@ -1414,108 +1412,126 @@ async function queryHomepagePromptCards() {
   }
 }
 
+// Homepage category summary, computed in JS.
+//
+// The original form was one SQL statement built on jsonb_to_recordset
+// (to pass the category definitions in), jsonb_array_elements_text
+// (legacy `categories` arrays), `= ANY(config.match_values)` and
+// ARRAY_AGG(...)[1] for the representative image — none of which has a
+// SQLite equivalent. The replacement fetches the eligible prompts once
+// (one narrow SELECT), the assigned-category slugs once (one junction
+// join), and does the matching and image pick in JS. The semantics are
+// the same as the SQL:
+// - eligible: published, photo library, not noindexed, non-blank title
+//   and prompt (the noindex slug list and the indexability filter are
+//   currently empty — see HOMEPAGE_NOINDEX_SLUGS /
+//   HOMEPAGE_INDEXABILITY_FILTER_SQL — but the slug exclusion is still
+//   applied in JS so a future list works unchanged).
+// - a prompt matches a category when any of these (lowercased) is one
+//   of the category's match values: its primary-category slug, an
+//   assigned-category slug, its legacy `category`, its `use_case`, or
+//   an element of its legacy `categories` array.
+// - count is the number of distinct matching prompts; the image is
+//   picked from the matching prompts ordered by (title === the
+//   category's image_prompt_title first, created_at DESC NULLS LAST,
+//   id DESC), taking the first with a non-empty image, with imageAlt
+//   from that same prompt (its image_alt_texts[0], else its title).
+// Returns rows shaped { slug, label, count, image, imageAlt }, ordered
+// by slug — the shape loadHomepagePromptData maps into category cards.
 async function queryHomepageCategorySummary() {
   const categoryDefinitions = Object.values(PROMPT_CATEGORIES).map((category) => ({
     slug: category.slug,
     label: category.label,
-    match_values: getCategoryMatchValues(category),
-    image_prompt_title: HOMEPAGE_CATEGORY_IMAGE_PROMPT_TITLES[category.slug] || '',
+    matchValues: new Set(getCategoryMatchValues(category)),
+    imagePromptTitle: HOMEPAGE_CATEGORY_IMAGE_PROMPT_TITLES[category.slug] || '',
   }));
   const startedAt = Date.now();
 
   try {
-    const result = await getPgPool().query({
-      text: `
-        WITH category_config AS (
-          SELECT
-            config.slug,
-            config.label,
-            config.image_prompt_title,
-            ARRAY(SELECT jsonb_array_elements_text(config.match_values)) AS match_values
-          FROM jsonb_to_recordset($1::jsonb) AS config(
-            slug text,
-            label text,
-            match_values jsonb,
-            image_prompt_title text
-          )
-        ),
-        eligible_prompts AS (
-          SELECT
-            p.id,
-            p.title,
-            COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
-            p.image_alt_texts,
-            p.primary_category_id,
-            p.category,
-            p.use_case,
-            p.categories,
-            p.created_at
-          FROM prompts p
-          WHERE p.status = 'published'
-            AND p.library_type = 'photo'
-            AND COALESCE(p.should_noindex, false) = false
-            AND p.slug <> ALL($2::text[])
-            ${HOMEPAGE_INDEXABILITY_FILTER_SQL}
-            AND NULLIF(BTRIM(p.title), '') IS NOT NULL
-            AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
-        )
+    const [promptsResult, assignedResult] = await Promise.all([
+      getPgPool().query(`
         SELECT
-          config.slug,
-          config.label,
-          COUNT(DISTINCT prompt.id)::int AS count,
-          (
-            ARRAY_AGG(
-              prompt.image
-              ORDER BY
-                CASE WHEN prompt.title = config.image_prompt_title THEN 0 ELSE 1 END,
-                prompt.created_at DESC NULLS LAST,
-                prompt.id DESC
-            ) FILTER (WHERE NULLIF(prompt.image, '') IS NOT NULL)
-          )[1] AS image,
-          (
-            ARRAY_AGG(
-              COALESCE(NULLIF(prompt.image_alt_texts ->> '0', ''), prompt.title)
-              ORDER BY
-                CASE WHEN prompt.title = config.image_prompt_title THEN 0 ELSE 1 END,
-                prompt.created_at DESC NULLS LAST,
-                prompt.id DESC
-            ) FILTER (WHERE NULLIF(prompt.image, '') IS NOT NULL)
-          )[1] AS "imageAlt"
-        FROM category_config config
-        LEFT JOIN eligible_prompts prompt ON (
-          EXISTS (
-            SELECT 1
-            FROM categories primary_category
-            WHERE primary_category.id = prompt.primary_category_id
-              AND LOWER(primary_category.slug) = ANY(config.match_values)
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM prompt_categories pc
-            JOIN categories assigned_category ON assigned_category.id = pc.category_id
-            WHERE pc.prompt_id = prompt.id
-              AND LOWER(assigned_category.slug) = ANY(config.match_values)
-          )
-          OR LOWER(COALESCE(prompt.category, '')) = ANY(config.match_values)
-          OR LOWER(COALESCE(prompt.use_case, '')) = ANY(config.match_values)
-          OR EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_typeof(prompt.categories) = 'array' THEN prompt.categories
-                ELSE '[]'::jsonb
-              END
-            ) AS legacy_category(value)
-            WHERE LOWER(BTRIM(legacy_category.value)) = ANY(config.match_values)
-          )
-        )
-        GROUP BY config.slug, config.label
-        ORDER BY config.slug
-      `,
-      values: [JSON.stringify(categoryDefinitions), HOMEPAGE_NOINDEX_SLUGS],
+          p.id,
+          p.title,
+          p.slug,
+          COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
+          p.image_alt_texts ->> '0' AS "imageAlt",
+          primary_category.slug AS "primaryCategorySlug",
+          p.category,
+          p.use_case AS "useCase",
+          p.categories,
+          p.created_at::text AS "createdAt"
+        FROM prompts p
+        LEFT JOIN categories primary_category
+          ON primary_category.id = p.primary_category_id
+        WHERE p.status = 'published'
+          AND p.library_type = 'photo'
+          AND COALESCE(p.should_noindex, false) = false
+          AND NULLIF(BTRIM(p.title), '') IS NOT NULL
+          AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
+      `),
+      getPgPool().query(`
+        SELECT pc.prompt_id AS "promptId", LOWER(c.slug) AS slug
+        FROM prompt_categories pc
+        JOIN categories c ON c.id = pc.category_id
+      `),
+    ]);
+    const assignedSlugsByPrompt = new Map();
+    for (const row of assignedResult.rows) {
+      const promptId = Number(row.promptId);
+      if (!Number.isSafeInteger(promptId)) continue;
+      if (!assignedSlugsByPrompt.has(promptId)) assignedSlugsByPrompt.set(promptId, new Set());
+      if (typeof row.slug === 'string' && row.slug) assignedSlugsByPrompt.get(promptId).add(row.slug);
+    }
+    const noindexSlugs = new Set(
+      HOMEPAGE_NOINDEX_SLUGS.map((slug) => String(slug || '').toLowerCase()),
+    );
+    const eligiblePrompts = promptsResult.rows.filter((prompt) => {
+      const slug = String(prompt.slug || '').toLowerCase();
+      return slug && !noindexSlugs.has(slug);
     });
+
+    const rows = categoryDefinitions.map((category) => {
+      const matches = eligiblePrompts.filter((prompt) => {
+        const candidates = [
+          typeof prompt.primaryCategorySlug === 'string'
+            ? prompt.primaryCategorySlug.trim().toLowerCase()
+            : '',
+          ...(assignedSlugsByPrompt.get(Number(prompt.id)) || []),
+          String(prompt.category || '').trim().toLowerCase(),
+          String(prompt.useCase || '').trim().toLowerCase(),
+          ...(Array.isArray(prompt.categories)
+            ? prompt.categories.map((value) => String(value || '').trim().toLowerCase())
+            : []),
+        ].filter(Boolean);
+        return candidates.some((candidate) => category.matchValues.has(candidate));
+      });
+      const ranked = [...matches].sort((a, b) => {
+        const aTitleRank = a.title === category.imagePromptTitle ? 0 : 1;
+        const bTitleRank = b.title === category.imagePromptTitle ? 0 : 1;
+        if (aTitleRank !== bTitleRank) return aTitleRank - bTitleRank;
+        const aCreatedAt = a.createdAt || null;
+        const bCreatedAt = b.createdAt || null;
+        if (aCreatedAt === null && bCreatedAt === null) return Number(b.id) - Number(a.id);
+        if (aCreatedAt === null) return 1;
+        if (bCreatedAt === null) return -1;
+        if (aCreatedAt !== bCreatedAt) return aCreatedAt < bCreatedAt ? 1 : -1;
+        return Number(b.id) - Number(a.id);
+      });
+      const picked = ranked.find((prompt) => typeof prompt.image === 'string' && prompt.image !== '');
+      return {
+        slug: category.slug,
+        label: category.label,
+        count: matches.length,
+        image: picked ? picked.image : null,
+        imageAlt: picked
+          ? (typeof picked.imageAlt === 'string' && picked.imageAlt !== '' ? picked.imageAlt : picked.title)
+          : null,
+      };
+    });
+    rows.sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
     console.info(`[HOME_TIMING] category_summary_db_ms=${Date.now() - startedAt}`);
-    return result.rows;
+    return rows;
   } catch (error) {
     console.error(`[HOME_TIMING] category_summary_db_failed_ms=${Date.now() - startedAt}`);
     throw error;
@@ -1922,7 +1938,10 @@ async function queryPromptRowById(id) {
       p.image,
       p.images,
       COALESCE(primary_category.name, p.category) AS category,
-      COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+      COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
+        FROM prompt_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories,
       p.use_case AS "useCase",
       p.tags,
       p.faqs,
@@ -1930,8 +1949,14 @@ async function queryPromptRowById(id) {
       p.status,
       p.primary_category_id AS "primaryCategoryId",
       primary_category.slug AS "primaryCategorySlug",
-      COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds",
-      COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs",
+      COALESCE((SELECT JSONB_AGG(c.id ORDER BY pc.position, c.id)
+        FROM prompt_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categoryIds",
+      COALESCE((SELECT JSONB_AGG(c.slug ORDER BY pc.position, c.id)
+        FROM prompt_categories pc
+        JOIN categories c ON c.id = pc.category_id
+        WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categorySlugs",
       p.meta_title AS "metaTitle",
       p.meta_description AS "metaDescription",
       p.og_image AS "ogImage",
@@ -1955,15 +1980,6 @@ async function queryPromptRowById(id) {
     FROM prompts p
     LEFT JOIN categories primary_category
       ON primary_category.id = p.primary_category_id
-    LEFT JOIN LATERAL (
-      SELECT
-        JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-        JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
-        JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
-      FROM prompt_categories pc
-      JOIN categories c ON c.id = pc.category_id
-      WHERE pc.prompt_id = p.id
-    ) assigned_categories ON true
     WHERE p.id = $1
       AND p.status = 'published'
       AND p.library_type = 'photo'

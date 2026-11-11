@@ -27,7 +27,9 @@ function CollectionForm({ collection, allPrompts, onSave, onCancel }) {
     description: collection?.description || '',
     type: collection?.type || 'curated',
     promptIds: Array.isArray(collection?.promptIds) ? collection.promptIds : [],
-    published: collection?.published !== false,
+    // Unpublished is `false` on Neon but `0` on D1; a new collection
+    // (no `published` value yet) still defaults to published.
+    published: collection?.published !== false && collection?.published !== 0,
   });
   const [search, setSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);

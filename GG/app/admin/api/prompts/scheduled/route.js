@@ -69,56 +69,59 @@ export async function POST() {
     // Ensure column exists (no-op after first successful run in this process)
     await ensureScheduledAtColumn();
 
-    const client = await pool.connect();
-    let result;
-    try {
-      await client.query('BEGIN');
-      const duePrompts = await client.query(`
-        SELECT
-          p.id, p.title, p.prompt, p.slug, p.image, p.images, p.category,
-          p.use_case AS "useCase", p.tags, p.og_image AS "ogImage", p.intro,
-          COALESCE(assigned.names, p.categories, '[]'::jsonb) AS categories
-        FROM prompts p
-        LEFT JOIN LATERAL (
-          SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names
+    // FOR UPDATE OF p stays in the SQL: it is a no-op on the Neon HTTP
+    // driver and the D1 adapter strips it. The UPDATE below re-checks
+    // the draft/scheduled conditions per row, so a prompt published
+    // concurrently is simply not returned — same as the original
+    // single-statement form.
+    const duePrompts = await pool.query(`
+      SELECT
+        p.id, p.title, p.prompt, p.slug, p.image, p.images, p.category,
+        p.use_case AS "useCase", p.tags, p.og_image AS "ogImage", p.intro,
+        COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
           FROM prompt_categories pc
           JOIN categories c ON c.id = pc.category_id
-          WHERE pc.prompt_id = p.id
-        ) assigned ON true
-        WHERE p.status = 'draft'
-          AND p.scheduled_at IS NOT NULL
-          AND p.scheduled_at <= NOW()
-          AND p.library_type = 'photo'
-        ORDER BY p.id
-        FOR UPDATE OF p
-      `);
-      const eligibility = duePrompts.rows.map((prompt) => ({
-        id: prompt.id,
-        ...getPromptEligibilityFlags(prompt),
+          WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories
+      FROM prompts p
+      WHERE p.status = 'draft'
+        AND p.scheduled_at IS NOT NULL
+        AND p.scheduled_at <= NOW()
+        AND p.library_type = 'photo'
+      ORDER BY p.id
+      FOR UPDATE OF p
+    `);
+    const eligibility = duePrompts.rows.map((prompt) => ({
+      id: prompt.id,
+      ...getPromptEligibilityFlags(prompt),
+    }));
+
+    // Publish the due prompts. The original single UPDATE joined the
+    // eligibility flags in with jsonb_to_recordset, which has no SQLite
+    // equivalent; instead each due prompt gets a guarded UPDATE (the
+    // WHERE re-checks the draft/scheduled conditions, so a prompt that
+    // changed state since the SELECT above is skipped) and all of them
+    // run as one atomic batch via runTransaction — the same atomicity
+    // the single statement had.
+    let result = { rows: [] };
+    if (eligibility.length > 0) {
+      const updates = eligibility.map((item) => ({
+        text: `
+          UPDATE prompts
+          SET status = 'published',
+              scheduled_at = NULL,
+              updated_at = NOW(),
+              is_public_eligible = $2
+          WHERE id = $1
+            AND status = 'draft'
+            AND scheduled_at IS NOT NULL
+            AND scheduled_at <= NOW()
+            AND library_type = 'photo'
+          RETURNING id, title, slug
+        `,
+        values: [item.id, item.isPublicEligible],
       }));
-      result = await client.query(`
-        UPDATE prompts p
-        SET status = 'published',
-            scheduled_at = NULL,
-            updated_at = NOW(),
-            is_public_eligible = update_row."isPublicEligible"
-        FROM jsonb_to_recordset($1::jsonb) AS update_row(
-          id bigint,
-          "isPublicEligible" boolean
-        )
-        WHERE p.id = update_row.id
-          AND p.status = 'draft'
-          AND p.scheduled_at IS NOT NULL
-          AND p.scheduled_at <= NOW()
-          AND p.library_type = 'photo'
-        RETURNING p.id, p.title, p.slug
-      `, [JSON.stringify(eligibility)]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+      const updateResults = await pool.runTransaction(updates);
+      result = { rows: updateResults.flatMap((update) => update.rows) };
     }
 
     // Revalidate cache for each published prompt

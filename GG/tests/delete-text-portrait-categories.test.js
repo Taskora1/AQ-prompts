@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { translatePostgresToSqlite } from '../src/lib/pg-to-d1.js';
 import { deleteTextPortraitCategories } from '../scripts/delete-text-portrait-categories.mjs';
 import { DATABASE_MIGRATION_OPERATIONS } from '../scripts/lib/database-migration-safety.mjs';
 
@@ -53,7 +54,28 @@ test('deletes only requested Text categories and preserves prompts and other ass
   assert.equal(statements.at(-1).sql, 'COMMIT');
   const update = statements.find(({ sql }) => sql.includes('WITH affected')).sql;
   assert.match(update, /c\.library_type = 'text'/);
-  assert.match(update, /NOT \(c\.id = ANY\(\$1::bigint\[\]\)\)/);
+  // The call site still emits `= ANY($1::bigint[])`; on the D1 path the
+  // translator expands each array binding to IN (?, ?, ...) with one
+  // placeholder per id (SQLite has no array parameters).
+  const translated = statements
+    .filter(({ values }) => values.length > 0)
+    .map(({ sql, values }) => translatePostgresToSqlite(sql, values));
+  assert.equal(translated.length, 3);
+  for (const item of translated) {
+    assert.doesNotMatch(item.sql, /=\s*ANY\s*\(/i);
+    assert.doesNotMatch(item.sql, /::bigint/i);
+  }
+  const translatedUpdate = translated.find(({ sql }) => sql.includes('WITH affected'));
+  assert.match(translatedUpdate.sql, /p\.primary_category_id IN \(\?, \?\)/);
+  assert.match(translatedUpdate.sql, /pc\.category_id IN \(\?, \?\)/);
+  assert.match(translatedUpdate.sql, /NOT \(c\.id IN \(\?, \?\)\)/);
+  assert.deepEqual(translatedUpdate.values, [52, 53, 52, 53, 52, 53]);
+  const translatedDeletes = translated.filter(({ sql }) => /^DELETE FROM/i.test(sql.trim()));
+  assert.equal(translatedDeletes.length, 2);
+  for (const item of translatedDeletes) {
+    assert.match(item.sql, /IN \(\?, \?\)/);
+    assert.deepEqual(item.values, [52, 53]);
+  }
   assert.doesNotMatch(statements.map(({ sql }) => sql).join('\n'), /DELETE\s+FROM\s+public\.prompts/i);
   assert.ok(statements.every(({ values }) => (
     values.length === 0 || values[0].every((id) => [52, 53].includes(id))

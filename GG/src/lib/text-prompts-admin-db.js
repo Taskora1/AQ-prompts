@@ -225,21 +225,19 @@ export async function getTextPromptById(id, { client = getPgPool() } = {}) {
         p.id, p.title, p.prompt, p.slug, p.status, p.intro,
         p.use_case AS "useCase",
         COALESCE(primary_category.name, p.category) AS category,
-        COALESCE(assigned.names, p.categories, '[]'::jsonb) AS categories,
+        COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories,
         p.primary_category_id AS "primaryCategoryId",
-        COALESCE(assigned.ids, '[]'::jsonb) AS "categoryIds",
+        COALESCE((SELECT JSONB_AGG(c.id ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categoryIds",
         p.tags, p.image, p.images, p.og_image AS "ogImage",
         p.updated_at::text AS "updatedAt"
       FROM prompts p
       LEFT JOIN categories primary_category ON primary_category.id = p.primary_category_id
-      LEFT JOIN LATERAL (
-        SELECT
-          JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-          JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids
-        FROM prompt_categories pc
-        JOIN categories c ON c.id = pc.category_id
-        WHERE pc.prompt_id = p.id
-      ) assigned ON true
       WHERE p.id = $1 AND p.library_type = 'text'
       LIMIT 1
     `,

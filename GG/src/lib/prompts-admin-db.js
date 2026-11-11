@@ -443,7 +443,10 @@ export async function getAdminPromptById(id, { client = getPgPool() } = {}) {
         p.image,
         p.images,
         COALESCE(primary_category.name, p.category) AS category,
-        COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+        COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), p.categories, '[]'::jsonb) AS categories,
         p.use_case AS "useCase",
         p.tags,
         p.faqs,
@@ -455,7 +458,10 @@ export async function getAdminPromptById(id, { client = getPgPool() } = {}) {
         p.prompt_breakdown AS "promptBreakdown",
         p.prompt_specific_troubleshooting AS "promptSpecificTroubleshooting",
         p.primary_category_id AS "primaryCategoryId",
-        COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds",
+        COALESCE((SELECT JSONB_AGG(c.id ORDER BY pc.position, c.id)
+          FROM prompt_categories pc
+          JOIN categories c ON c.id = pc.category_id
+          WHERE pc.prompt_id = p.id), '[]'::jsonb) AS "categoryIds",
         p.created_at::text AS "createdAt",
         p.intro,
         p.unique_feature AS "uniqueFeature",
@@ -477,14 +483,6 @@ export async function getAdminPromptById(id, { client = getPgPool() } = {}) {
       FROM prompts p
       LEFT JOIN categories primary_category
         ON primary_category.id = p.primary_category_id
-      LEFT JOIN LATERAL (
-        SELECT
-          JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-          JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids
-        FROM prompt_categories pc
-        JOIN categories c ON c.id = pc.category_id
-        WHERE pc.prompt_id = p.id
-      ) assigned_categories ON true
       WHERE p.id = $1
         AND p.library_type = 'photo'
       LIMIT 1

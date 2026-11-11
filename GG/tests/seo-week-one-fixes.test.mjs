@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
+import { translatePostgresToSqlite } from '../src/lib/pg-to-d1.js';
 import { toPromptCardItem } from '../src/lib/prompt-card.js';
 
 test('prompt card serialization prefers stored image alt text and falls back to the title', () => {
@@ -81,7 +82,21 @@ test('dress-change guide redirects permanently to the canonical outfit post', as
   assert.match(config, /destination: '\/blog\/chatgpt-photo-dress-change-prompt-15-copy-paste-ai-outfit-prompts'/);
   assert.match(config, /permanent: true/);
   assert.match(blogDb, /const REDIRECTED_BLOG_POST_SLUGS = \['chatgpt-dress-change-prompt-guide-for-women'\]/);
-  assert.match(blogDb, /WHERE status = 'published'\s+AND slug <> ALL\(\$1::text\[\]\)/);
+
+  // The feed query excludes the redirected slug. The call site still
+  // emits the Postgres `<> ALL(...)` form; on the D1 path the translator
+  // rewrites it to NOT IN with the slugs bound one per placeholder.
+  // (blog-db.js cannot be imported under plain node --test: it pulls in
+  // React's cache(), so the query is read from its source instead.)
+  const feedQuery = blogDb.match(
+    /async function getPublishedBlogPostsForFeed\(\) \{[\s\S]*?getPgPool\(\)\.query\(`([\s\S]*?)`, \[REDIRECTED_BLOG_POST_SLUGS\]\)/,
+  )?.[1];
+  assert.ok(feedQuery);
+  assert.match(feedQuery, /WHERE status = 'published'\s+AND slug <> ALL\(\$1::text\[\]\)/);
+  const translated = translatePostgresToSqlite(feedQuery, [['chatgpt-dress-change-prompt-guide-for-women']]);
+  assert.match(translated.sql, /WHERE status = 'published'\s+AND slug NOT IN \(\?\)/);
+  assert.doesNotMatch(translated.sql, /ALL\(/);
+  assert.deepEqual(translated.values, ['chatgpt-dress-change-prompt-guide-for-women']);
 });
 
 test('prompt and blog sitemap entries fall back to their publish dates', async () => {

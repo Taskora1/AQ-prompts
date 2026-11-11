@@ -45,7 +45,8 @@ export async function supportsCategoryLibraryType(client = null) {
         AND column_name = 'library_type'
     ) AS supported
   `);
-  cachedSupportsCategoryLibraryType = result.rows[0]?.supported === true;
+  // EXISTS returns a boolean on Neon but 1/0 on D1.
+  cachedSupportsCategoryLibraryType = Boolean(result.rows[0]?.supported);
   return cachedSupportsCategoryLibraryType;
 }
 
