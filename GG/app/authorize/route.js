@@ -2,7 +2,6 @@ import {
   getMcpOAuthServerMetadata,
   getMcpProtectedResourceMetadata,
   isDescopeOAuthEnabled,
-  isDescopePreviewOAuthEnabled,
   McpOAuthConfigurationError,
   McpOAuthMetadataUnavailableError,
 } from '../../src/lib/mcp-auth.js';
@@ -15,36 +14,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const CLAUDE_REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback';
-const OMIT_RESOURCE_DIAGNOSTIC_FLAG = 'AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC';
 const MAX_STATE_LENGTH = 1024;
 const MAX_SCOPE_LENGTH = 1024;
 const OPTIONAL_PARAMETERS = ['scope', 'prompt', 'login_hint', 'nonce'];
 const DESCOPE_IDENTITY_SCOPES = new Set(['profile', 'email']);
-const SAFE_DISCOVERY_FAILURE_REASONS = new Set([
-  'oauth_configuration_invalid',
-  'resource_uri_invalid',
-  'issuer_configuration_invalid',
-  'jwks_configuration_invalid',
-  'signing_algorithm_unsupported',
-  'client_id_configuration_missing',
-  'discovery_url_invalid',
-  'discovery_metadata_unavailable',
-  'discovery_fetch_failed',
-  'discovery_fetch_timeout',
-  'discovery_http_error',
-  'discovery_response_too_large',
-  'discovery_response_body_missing',
-  'discovery_response_read_failed',
-  'discovery_json_invalid',
-  'discovery_document_invalid',
-  'discovery_issuer_mismatch',
-  'discovery_authorization_endpoint_mismatch',
-  'discovery_token_endpoint_mismatch',
-  'discovery_authorization_code_unsupported',
-  'discovery_pkce_s256_unsupported',
-  'discovery_jwks_uri_invalid',
-  'discovery_jwks_uri_mismatch',
-]);
 
 function errorResponse(message, status) {
   return Response.json(
@@ -78,21 +51,6 @@ function isValidCodeChallenge(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 }
 
-function getSupabaseAuthorizationEndpoint(issuer) {
-  const issuerUrl = new URL(issuer);
-  if (
-    issuerUrl.protocol !== 'https:'
-    || issuerUrl.username
-    || issuerUrl.password
-    || issuerUrl.search
-    || issuerUrl.hash
-  ) {
-    throw new McpOAuthConfigurationError('The OAuth issuer URL is invalid.');
-  }
-  issuerUrl.pathname = `${issuerUrl.pathname.replace(/\/+$/, '')}/oauth/authorize`;
-  return issuerUrl;
-}
-
 export async function GET(request) {
   let metadata;
   try {
@@ -102,7 +60,6 @@ export async function GET(request) {
     return errorResponse('MCP OAuth is not configured.', 503);
   }
 
-  const expectedClientId = process.env.AQ_MCP_OAUTH_CLIENT_ID;
   const requestUrl = new URL(request.url);
   const responseType = getSingleParameter(requestUrl.searchParams, 'response_type');
   const clientId = getSingleParameter(requestUrl.searchParams, 'client_id');
@@ -110,14 +67,12 @@ export async function GET(request) {
   const codeChallenge = getSingleParameter(requestUrl.searchParams, 'code_challenge');
   const codeChallengeMethod = getSingleParameter(requestUrl.searchParams, 'code_challenge_method');
   const state = getSingleParameter(requestUrl.searchParams, 'state');
-  const useDescope = isDescopeOAuthEnabled();
   const requestedResource = requestUrl.searchParams.has('resource')
     ? getSingleParameter(requestUrl.searchParams, 'resource')
     : metadata.resource;
 
   if (
     responseType !== 'code'
-    || (!useDescope && (!expectedClientId || clientId !== expectedClientId))
     || redirectUri !== CLAUDE_REDIRECT_URI
     || !isValidCodeChallenge(codeChallenge)
     || codeChallengeMethod !== 'S256'
@@ -127,47 +82,42 @@ export async function GET(request) {
     return errorResponse('Invalid MCP OAuth authorization request.', 400);
   }
 
-  if (useDescope) {
-    try {
-      if (!await isMcpOAuthClientRegistered(clientId, redirectUri)) {
-        return errorResponse('Invalid MCP OAuth authorization client.', 400);
-      }
-    } catch (error) {
-      if (!(error instanceof McpOAuthBrokerStoreUnavailableError)) throw error;
-      return errorResponse('MCP OAuth registration service is unavailable.', 503);
+  // Descope is the only supported OAuth path. The legacy Supabase
+  // email-OTP sign-in/consent flow was removed: it could never complete a
+  // token exchange, so /authorize must not redirect to it.
+  if (!isDescopeOAuthEnabled()) {
+    return errorResponse('MCP OAuth is not configured.', 503);
+  }
+
+  try {
+    if (!await isMcpOAuthClientRegistered(clientId, redirectUri)) {
+      return errorResponse('Invalid MCP OAuth authorization client.', 400);
     }
+  } catch (error) {
+    if (!(error instanceof McpOAuthBrokerStoreUnavailableError)) throw error;
+    return errorResponse('MCP OAuth registration service is unavailable.', 503);
   }
 
   let authorizationEndpoint;
-  let authorizationClientId = clientId;
-  if (useDescope) {
-    try {
-      const oauthMetadata = await getMcpOAuthServerMetadata();
-      authorizationEndpoint = new URL(oauthMetadata.authorizationEndpoint);
-      authorizationClientId = process.env.AQ_MCP_DESCOPE_CLIENT_ID;
-      if (!authorizationClientId) {
-        throw new McpOAuthConfigurationError(
-          'The Descope OAuth application client ID must be configured.',
-          'descope_client_id_configuration_missing',
-        );
-      }
-    } catch (error) {
-      if (
-        error instanceof McpOAuthConfigurationError
-        || error instanceof McpOAuthMetadataUnavailableError
-      ) {
-        if (process.env.VERCEL_ENV === 'preview' && isDescopePreviewOAuthEnabled()) {
-          const reason = SAFE_DISCOVERY_FAILURE_REASONS.has(error.reasonCode)
-            ? error.reasonCode
-            : 'unclassified_discovery_failure';
-          console.error('[MCP OAuth] Preview Descope discovery failure:', reason);
-        }
-        return errorResponse('MCP OAuth discovery is unavailable.', 503);
-      }
-      throw error;
+  let authorizationClientId;
+  try {
+    const oauthMetadata = await getMcpOAuthServerMetadata();
+    authorizationEndpoint = new URL(oauthMetadata.authorizationEndpoint);
+    authorizationClientId = process.env.AQ_MCP_DESCOPE_CLIENT_ID;
+    if (!authorizationClientId) {
+      throw new McpOAuthConfigurationError(
+        'The Descope OAuth application client ID must be configured.',
+        'descope_client_id_configuration_missing',
+      );
     }
-  } else {
-    authorizationEndpoint = getSupabaseAuthorizationEndpoint(metadata.authorization_servers[0]);
+  } catch (error) {
+    if (
+      error instanceof McpOAuthConfigurationError
+      || error instanceof McpOAuthMetadataUnavailableError
+    ) {
+      return errorResponse('MCP OAuth discovery is unavailable.', 503);
+    }
+    throw error;
   }
 
   for (const parameter of OPTIONAL_PARAMETERS) {
@@ -194,26 +144,19 @@ export async function GET(request) {
   forwarded.set('code_challenge', codeChallenge);
   forwarded.set('code_challenge_method', codeChallengeMethod);
   forwarded.set('state', state);
-  const omitResourceForPreviewDiagnostic = process.env.VERCEL_ENV === 'preview'
-    && !useDescope
-    && process.env[OMIT_RESOURCE_DIAGNOSTIC_FLAG] === 'true';
-  if (!useDescope && !omitResourceForPreviewDiagnostic) {
-    forwarded.set('resource', requestedResource);
-  } else {
-    forwarded.delete('resource');
-  }
+  // The MCP resource is an internal audience check and is never forwarded
+  // to Descope.
+  forwarded.delete('resource');
   for (const parameter of OPTIONAL_PARAMETERS) {
     const value = getSingleParameter(requestUrl.searchParams, parameter);
-    if (value !== null && (!useDescope || parameter !== 'nonce')) {
+    if (value !== null && parameter !== 'nonce') {
       forwarded.set(parameter, value);
     }
   }
-  if (useDescope) {
-    const requestedScopes = forwarded.get('scope')?.split(/\s+/).filter(
-      (scope) => DESCOPE_IDENTITY_SCOPES.has(scope),
-    ) || [];
-    forwarded.set('scope', ['openid', ...new Set(requestedScopes)].join(' '));
-  }
+  const requestedScopes = forwarded.get('scope')?.split(/\s+/).filter(
+    (scope) => DESCOPE_IDENTITY_SCOPES.has(scope),
+  ) || [];
+  forwarded.set('scope', ['openid', ...new Set(requestedScopes)].join(' '));
 
   authorizationUrl.search = forwarded.toString();
   return new Response(null, {

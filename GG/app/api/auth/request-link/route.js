@@ -53,7 +53,7 @@ function buildLoginEmail(loginUrl) {
     <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;padding:32px;color:#111827;">
       <p style="margin:0 0 8px;color:#ff6b35;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">AQPrompts</p>
       <h1 style="margin:0 0 16px;font-size:28px;line-height:1.25;">Sign in to your account</h1>
-      <p style="margin:0 0 24px;color:#4b5563;line-height:1.7;">Use the secure button below to access your membership and Paddle billing portal. This link expires in 15 minutes and can only be used once.</p>
+      <p style="margin:0 0 24px;color:#4b5563;line-height:1.7;">Use the secure button below to sign in to your AQPrompts account. This link expires in 15 minutes and can only be used once.</p>
       <a href="${loginUrl}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#ff6b35;color:#fff;text-decoration:none;font-weight:800;">Sign in securely</a>
       <p style="margin:24px 0 0;color:#6b7280;font-size:13px;line-height:1.6;">If you did not request this email, you can safely ignore it. Never forward this sign-in link.</p>
     </div>

@@ -5,7 +5,7 @@ import CookieSettingsButton from '@/components/CookieSettingsButton';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 
-const LAST_UPDATED = 'October 5, 2026';
+const LAST_UPDATED = 'November 11, 2026';
 
 const sections = [
   {
@@ -18,7 +18,6 @@ const sections = [
           <li><strong>Contact requests:</strong> name, email address, subject, and message submitted through our Formspree-powered contact form.</li>
           <li><strong>Newsletter:</strong> the email address you voluntarily submit to receive prompt emails and updates. Free public prompt copying does not require an email address.</li>
           <li><strong>Account access:</strong> email address, short-lived sign-in-token records, request-security fingerprints, and a signed session cookie when you use passwordless account access.</li>
-          <li><strong>Membership and billing records:</strong> Paddle customer, transaction, subscription, plan, status, renewal, and limited fulfillment information. AQPrompts does not directly store full payment-card numbers or security codes.</li>
           <li><strong>Community preview:</strong> name, country code, and WhatsApp number submitted for the separate community-preview verification flow.</li>
           <li><strong>Technical information:</strong> IP address, browser and device information, referring page, pages viewed, approximate location, timestamps, and interaction data when the relevant service is used and permitted.</li>
         </ul>
@@ -64,12 +63,10 @@ const sections = [
   },
   {
     id: 'payments',
-    title: '5. Paddle payments and memberships',
+    title: '5. Payments and memberships',
     content: (
       <>
-        <p>Paddle acts as Merchant of Record for Starter and Pro purchases. Paddle handles checkout, payment methods, billing details, fraud checks, taxes, receipts, renewals, and payment-support functions under its own privacy notice.</p>
-        <p>AQPrompts receives and stores limited customer, transaction, and subscription records through Paddle webhooks so it can provide access, show membership status, support cancellations, and resolve billing questions.</p>
-        <p>Review <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noreferrer">Paddle’s Privacy Policy</a>.</p>
+        <p>AQPrompts is a free library. There are no purchases, payments, or subscriptions, so no payment processor collects payment details from you.</p>
       </>
     ),
   },

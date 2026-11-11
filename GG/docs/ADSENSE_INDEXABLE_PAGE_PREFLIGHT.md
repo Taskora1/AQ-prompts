@@ -9,7 +9,7 @@ This is a code/content preflight, not an AdSense approval guarantee. Runtime-onl
 - Indexable routes reviewed: **36**
 - Pass: **36**
 - Fail: **0**
-- Noindexed prompt routes excluded from this indexable-route table: **297**
+- Noindexed prompt routes excluded from this indexable-route table: **327**
 - Duplicate indexable content titles: **0**
 
 ## Route results

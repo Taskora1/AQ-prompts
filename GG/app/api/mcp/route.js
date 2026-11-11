@@ -3,7 +3,6 @@ import {
   getMcpOAuthChallenge,
   getMcpOAuthClaimsDiagnostic,
   InvalidMcpTokenError,
-  isDescopePreviewOAuthEnabled,
   McpJwksUnavailableError,
   McpOAuthConfigurationError,
 } from '../../../src/lib/mcp-auth.js';
@@ -15,48 +14,6 @@ export const dynamic = 'force-dynamic';
 
 const CLAIMS_DIAGNOSTIC_FLAG = 'AQ_MCP_OAUTH_CLAIMS_DIAGNOSTIC';
 const CLAIMS_DIAGNOSTIC_HEADER = 'x-aq-mcp-oauth-claims-diagnostic';
-const SAFE_AUTH_FAILURE_REASONS = new Set([
-  'bearer_missing_or_invalid',
-  'bearer_not_jwt',
-  'jwt_invalid',
-  'jwt_size_invalid',
-  'jwt_structure_invalid',
-  'jwt_encoding_invalid',
-  'jwt_header_or_payload_invalid',
-  'jwks_key_invalid',
-  'jwks_key_not_found',
-  'jwt_signature_invalid',
-  'issuer_mismatch',
-  'audience_mismatch',
-  'subject_invalid',
-  'client_binding_mismatch',
-  'expiration_invalid',
-  'token_not_yet_valid',
-  'jwks_unavailable',
-  'oauth_configuration_invalid',
-  'resource_uri_invalid',
-  'issuer_configuration_invalid',
-  'jwks_configuration_invalid',
-  'signing_algorithm_unsupported',
-  'client_id_configuration_missing',
-  'discovery_url_invalid',
-  'discovery_metadata_unavailable',
-  'discovery_fetch_failed',
-  'discovery_fetch_timeout',
-  'discovery_http_error',
-  'discovery_response_too_large',
-  'discovery_response_body_missing',
-  'discovery_response_read_failed',
-  'discovery_json_invalid',
-  'discovery_document_invalid',
-  'discovery_issuer_mismatch',
-  'discovery_authorization_endpoint_mismatch',
-  'discovery_token_endpoint_mismatch',
-  'discovery_authorization_code_unsupported',
-  'discovery_pkce_s256_unsupported',
-  'discovery_jwks_uri_invalid',
-  'discovery_jwks_uri_mismatch',
-]);
 
 function jsonResponse(body, status, headers = {}) {
   return Response.json(body, {
@@ -97,12 +54,6 @@ async function handleRequest(request) {
 
   const authentication = await authenticateMcpRequest(request);
   if (!authentication.ok) {
-    if (process.env.VERCEL_ENV === 'preview' && isDescopePreviewOAuthEnabled()) {
-      const reason = SAFE_AUTH_FAILURE_REASONS.has(authentication.reasonCode)
-        ? authentication.reasonCode
-        : 'oauth_authentication_unavailable';
-      console.warn('[MCP OAuth] Preview token authentication rejected:', reason);
-    }
     if (authentication.status === 401) {
       return jsonResponse(
         { error: 'Unauthorized.' },

@@ -6,7 +6,10 @@ import {
   createDraft,
   updateDraft,
 } from '../src/lib/mcp-prompt-tools.js';
-import { handleMcpProtocolRequest } from '../src/lib/mcp-server.js';
+import {
+  handleMcpProtocolRequest,
+  MCP_MAX_REQUEST_BODY_BYTES,
+} from '../src/lib/mcp-server.js';
 
 const queries = [];
 let originalDatabaseUrl;
@@ -161,6 +164,9 @@ test('MCP tool input rejects invalid data and unknown tools', async () => {
   const invalidInputResponse = await handleMcpProtocolRequest(new Request('https://www.aqprompts.com/api/mcp', {
     method: 'POST',
     headers: {
+      // DNS rebinding protection is on: the transport rejects requests
+      // without a Host header, so synthetic requests must carry a real one.
+      host: 'www.aqprompts.com',
       'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
     },
@@ -178,6 +184,7 @@ test('MCP tool input rejects invalid data and unknown tools', async () => {
   const unknownToolResponse = await handleMcpProtocolRequest(new Request('https://www.aqprompts.com/api/mcp', {
     method: 'POST',
     headers: {
+      host: 'www.aqprompts.com',
       'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
     },
@@ -190,6 +197,40 @@ test('MCP tool input rejects invalid data and unknown tools', async () => {
   }));
   const unknownOutput = await unknownToolResponse.json();
   assert.ok(unknownOutput.error || unknownOutput.result?.isError);
+});
+
+test('MCP endpoint accepts a request body larger than the old 64 KB limit', async () => {
+  // Step 3 raised maxRequestBodySize from 64 KB to 8 MB: a real image
+  // upload is base64 in the JSON-RPC body, so the old limit 413'd every
+  // real upload. A 200 KB body must reach the tool layer, not a 413.
+  assert.ok(
+    MCP_MAX_REQUEST_BODY_BYTES >= 8 * 1024 * 1024,
+    `MCP_MAX_REQUEST_BODY_BYTES is ${MCP_MAX_REQUEST_BODY_BYTES}, expected at least 8 MB`,
+  );
+  const largeImage = Buffer.alloc(200 * 1024, 0x41).toString('base64');
+  const response = await handleMcpProtocolRequest(new Request('https://www.aqprompts.com/api/mcp', {
+    method: 'POST',
+    headers: {
+      host: 'www.aqprompts.com',
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 9,
+      method: 'tools/call',
+      params: {
+        name: 'upload_photo_image',
+        arguments: { imageBase64: largeImage, contentType: 'image/jpeg' },
+      },
+    }),
+  }));
+  // The tool itself rejects unauthenticated calls, but only after the
+  // transport has read the body: a 413 here would mean the size limit
+  // still blocks real uploads.
+  assert.notEqual(response.status, 413);
+  const output = await response.json();
+  assert.ok(output.result?.isError || output.error);
 });
 
 test('draft creation forces status to draft regardless of a supplied status field', async () => {

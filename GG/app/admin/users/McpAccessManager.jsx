@@ -21,6 +21,12 @@ export default function McpAccessManager({ users = [] }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [draftAssignments, setDraftAssignments] = useState([]);
+  const [isDraftLoading, setIsDraftLoading] = useState(true);
+  const [draftLibrary, setDraftLibrary] = useState('photo');
+  const [draftId, setDraftId] = useState('');
+  const [draftSubject, setDraftSubject] = useState('');
+  const [busyDraft, setBusyDraft] = useState('');
 
   const loadAuthorizations = useCallback(async () => {
     setIsLoading(true);
@@ -48,6 +54,24 @@ export default function McpAccessManager({ users = [] }) {
   useEffect(() => {
     void loadAuthorizations();
   }, [loadAuthorizations]);
+
+  const loadDraftAssignments = useCallback(async () => {
+    setIsDraftLoading(true);
+    try {
+      const response = await fetch('/admin/api/mcp/draft-access', { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'MCP draft assignments could not be loaded.');
+      setDraftAssignments(result.assignments || []);
+    } catch (loadError) {
+      setError(loadError.message || 'MCP draft assignments could not be loaded.');
+    } finally {
+      setIsDraftLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDraftAssignments();
+  }, [loadDraftAssignments]);
 
   useEffect(() => {
     if (!eligibleUsers.some((user) => String(user.id) === adminUserId)) {
@@ -108,6 +132,66 @@ export default function McpAccessManager({ users = [] }) {
       setError(revokeError.message || 'MCP access could not be revoked.');
     } finally {
       setBusySubject('');
+    }
+  }
+
+  async function assignDraftAccess(event) {
+    event.preventDefault();
+    const id = Number(draftId);
+    const key = `${draftLibrary}:${id}:${draftSubject}`;
+    setBusyDraft(key);
+    setNotice('');
+    setError('');
+    try {
+      const response = await fetch('/admin/api/mcp/draft-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign',
+          id,
+          library: draftLibrary,
+          subject: draftSubject,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'MCP draft access could not be assigned.');
+      setDraftId('');
+      setNotice(`Assigned draft #${id} (${draftLibrary}) to ${draftSubject}.`);
+      await loadDraftAssignments();
+    } catch (assignError) {
+      setError(assignError.message || 'MCP draft access could not be assigned.');
+    } finally {
+      setBusyDraft('');
+    }
+  }
+
+  async function revokeDraftAccess(assignment) {
+    const label = `draft #${assignment.id} (${assignment.library}) for ${assignment.subject}`;
+    if (!window.confirm(`Revoke MCP draft access for ${label}?`)) return;
+
+    const key = `${assignment.library}:${assignment.id}:${assignment.subject}`;
+    setBusyDraft(key);
+    setNotice('');
+    setError('');
+    try {
+      const response = await fetch('/admin/api/mcp/draft-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'revoke',
+          id: assignment.id,
+          library: assignment.library,
+          subject: assignment.subject,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'MCP draft access could not be revoked.');
+      setNotice(`Revoked MCP draft access for ${label}.`);
+      await loadDraftAssignments();
+    } catch (revokeError) {
+      setError(revokeError.message || 'MCP draft access could not be revoked.');
+    } finally {
+      setBusyDraft('');
     }
   }
 
@@ -175,7 +259,7 @@ export default function McpAccessManager({ users = [] }) {
         </button>
       </form>
       <p className="mt-2 text-xs text-[#646970]">
-        Re-linking an existing subject resets its optional publish, blog-publish, and image-upload permissions to off.
+        Re-linking an existing subject keeps its existing publish, blog-publish, and image-upload permissions.
         Existing unlinked grants remain blocked until linked.
       </p>
 
@@ -331,6 +415,102 @@ export default function McpAccessManager({ users = [] }) {
           </p>
         ) : null}
         {isLoading ? <p className="py-3 text-sm text-slate-500">Loading MCP access…</p> : null}
+      </div>
+
+      <div className="mt-8 border-t border-[#dcdcde] pt-5">
+        <h3 className="text-base font-semibold">MCP draft access</h3>
+        <p className="mt-1 text-sm text-[#50575e]">
+          Drafts are private to their MCP owner unless explicitly assigned here. Assign a draft (photo, text, or
+          blog) to an OAuth subject so that subject can read and edit it; otherwise only the owner sees it.
+        </p>
+        <form onSubmit={assignDraftAccess} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto] sm:items-end">
+          <div>
+            <label htmlFor="mcp-draft-library" className="block text-sm font-semibold">Library</label>
+            <select
+              id="mcp-draft-library"
+              value={draftLibrary}
+              onChange={(event) => setDraftLibrary(event.target.value)}
+              className="mt-2 h-10 w-full rounded border border-[#8c8f94] bg-white px-3 text-sm"
+            >
+              <option value="photo">Photo prompt</option>
+              <option value="text">Text prompt</option>
+              <option value="blog">Blog post</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="mcp-draft-id" className="block text-sm font-semibold">Draft ID</label>
+            <input
+              id="mcp-draft-id"
+              value={draftId}
+              onChange={(event) => setDraftId(event.target.value)}
+              required
+              inputMode="numeric"
+              placeholder="e.g. 42"
+              className="mt-2 h-10 w-full rounded border border-[#8c8f94] bg-white px-3 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="mcp-draft-subject" className="block text-sm font-semibold">OAuth subject (`sub`)</label>
+            <input
+              id="mcp-draft-subject"
+              value={draftSubject}
+              onChange={(event) => setDraftSubject(event.target.value)}
+              required
+              maxLength={255}
+              autoComplete="off"
+              placeholder="Exact subject from the verified OAuth token"
+              className="mt-2 h-10 w-full rounded border border-[#8c8f94] bg-white px-3 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!draftId.trim() || !draftSubject.trim() || Boolean(busyDraft)}
+            className="h-10 rounded bg-[#2271b1] px-4 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busyDraft ? 'Assigning…' : 'Assign draft'}
+          </button>
+        </form>
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead className="bg-[#f6f7f7]">
+              <tr>
+                <th className="border-b border-[#c3c4c7] px-3 py-2">Draft</th>
+                <th className="border-b border-[#c3c4c7] px-3 py-2">Library</th>
+                <th className="border-b border-[#c3c4c7] px-3 py-2">OAuth subject</th>
+                <th className="border-b border-[#c3c4c7] px-3 py-2">State</th>
+                <th className="border-b border-[#c3c4c7] px-3 py-2 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draftAssignments.map((assignment) => (
+                <tr key={`${assignment.library}:${assignment.id}:${assignment.subject}`} className="border-b border-[#dcdcde] last:border-0">
+                  <td className="px-3 py-2 font-mono text-xs">#{assignment.id}</td>
+                  <td className="px-3 py-2">{assignment.library}</td>
+                  <td className="max-w-[280px] truncate px-3 py-2 font-mono text-xs" title={assignment.subject}>
+                    {assignment.subject}
+                  </td>
+                  <td className="px-3 py-2">{assignment.revokedAt ? 'Revoked' : 'Active'}</td>
+                  <td className="px-3 py-2 text-right">
+                    {!assignment.revokedAt ? (
+                      <button
+                        type="button"
+                        onClick={() => revokeDraftAccess(assignment)}
+                        disabled={Boolean(busyDraft)}
+                        className="rounded border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 disabled:opacity-60"
+                      >
+                        Revoke
+                      </button>
+                    ) : '—'}
+                  </td>
+                </tr>
+              ))}
+              {!isDraftLoading && draftAssignments.length === 0 ? (
+                <tr><td colSpan={5} className="px-3 py-4 text-center text-[#646970]">No MCP draft assignments found.</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+          {isDraftLoading ? <p className="py-3 text-sm text-[#646970]">Loading draft assignments…</p> : null}
+        </div>
       </div>
     </section>
   );

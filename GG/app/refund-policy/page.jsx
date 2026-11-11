@@ -11,33 +11,25 @@ export const revalidate = false;
 
 export const metadata = buildMetadata({
   title: 'Refund Policy',
-  description: 'Read the AQPrompts refund policy for digital AI prompt memberships and creator resources.',
+  description: 'AQPrompts is a free AI prompt library. There are no purchases, payments, or subscriptions, so there is nothing to refund.',
   path: '/refund-policy',
   noIndex: true,
   noFollow: false,
-  keywords: ['AQPrompts refund policy', 'AI prompts refund', 'Promptshe membership refund'],
+  keywords: ['AQPrompts refund policy', 'AI prompts refund'],
 });
 
 const policySections = [
   {
-    title: 'Digital product policy',
-    body: 'AQPrompts sells digital AI prompt access, memberships, community resources, and creator workflows. Because digital access can be delivered immediately, refunds are reviewed carefully and are not automatic after substantial use of the product.',
+    title: 'Everything is free',
+    body: 'AQPrompts is a free public library of AI prompts. There are no purchases, no payments, and no subscriptions, so there is nothing to refund.',
   },
   {
-    title: 'When refunds may be approved',
-    body: 'A refund may be approved if you were charged in error, purchased twice by mistake, could not access the product due to a technical issue we could not resolve, or contacted us shortly after purchase before meaningful use of the membership.',
+    title: 'No charges, no renewals',
+    body: 'We do not ask for payment details and we do not charge for access. Nothing is billed, so no refund can arise.',
   },
   {
-    title: 'When refunds may be declined',
-    body: 'Refunds may be declined for change of mind after using premium prompts, downloaded or copied digital content, misuse of the membership, or requests made after the relevant billing period has already been used.',
-  },
-  {
-    title: 'Cancellation',
-    body: 'Monthly and yearly memberships can be cancelled before the next renewal. Cancelling prevents future renewal charges but does not automatically refund a previous paid period.',
-  },
-  {
-    title: 'How to request help',
-    body: 'Email hello@aqprompts.com with your name, purchase email, order details, and a short explanation. We usually reply within 24-48 hours on business days.',
+    title: 'How to get help',
+    body: 'Email hello@aqprompts.com with your question and a short explanation. We usually reply within 24-48 hours on business days.',
   },
 ];
 
@@ -64,9 +56,9 @@ export default function RefundPolicyPage() {
             <p className="mt-5 text-sm font-black uppercase tracking-[0.18em] text-[#c2410c]">Policy</p>
             <h1 className="mt-3 text-4xl font-black tracking-normal text-slate-950 sm:text-5xl dark:text-white">Refund Policy</h1>
             <p className="mt-5 text-base leading-7 text-slate-600 sm:text-lg sm:leading-8 dark:text-slate-300">
-              This policy explains how refunds and cancellations work for AQPrompts digital memberships and prompt resources.
+              AQPrompts is free to use. This policy explains why there is nothing to refund.
             </p>
-            <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-slate-400">Last updated: July 11, 2026</p>
+            <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-slate-400">Last updated: November 11, 2026</p>
           </div>
         </section>
 
@@ -87,9 +79,9 @@ export default function RefundPolicyPage() {
             </div>
 
             <div className="mt-8 rounded-[1.5rem] border border-[#ff6b35]/25 bg-[#fff4ef] p-6 shadow-[0_18px_50px_rgba(255,107,53,0.12)] dark:bg-[#1b1514]">
-              <h2 className="text-xl font-black tracking-normal text-slate-950 dark:text-white">Need billing support?</h2>
+              <h2 className="text-xl font-black tracking-normal text-slate-950 dark:text-white">Need help?</h2>
               <p className="mt-3 leading-7 text-slate-700 dark:text-slate-200">
-                Contact us before opening a dispute so we can help with access, cancellation, or billing questions.
+                Contact us and we will help with access or any other question about AQPrompts.
               </p>
               <Link href="/contact" className="btn-premium mt-5 inline-flex items-center gap-2 rounded-full bg-[#ff6b35] px-5 py-3 text-sm font-black text-white hover:bg-[#e85d28]">
                 Contact support

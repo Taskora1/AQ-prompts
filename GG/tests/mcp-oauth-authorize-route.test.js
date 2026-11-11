@@ -48,11 +48,9 @@ before(() => {
     signingAlgorithm: process.env.AQ_MCP_OAUTH_SIGNING_ALGORITHM,
     clientId: process.env.AQ_MCP_OAUTH_CLIENT_ID,
     resource: process.env.AQ_MCP_RESOURCE_URI,
-    vercelEnv: process.env.VERCEL_ENV,
     oauthProvider: process.env.AQ_MCP_OAUTH_PROVIDER,
     descopeClientId: process.env.AQ_MCP_DESCOPE_CLIENT_ID,
     discoveryUrl: process.env.AQ_MCP_OAUTH_DISCOVERY_URL,
-    omitResourceDiagnostic: process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC,
     databaseUrl: process.env.DATABASE_URL,
   };
   process.env.AQ_MCP_OAUTH_ISSUER = ISSUER;
@@ -61,10 +59,8 @@ before(() => {
   process.env.AQ_MCP_OAUTH_CLIENT_ID = CLIENT_ID;
   process.env.AQ_MCP_RESOURCE_URI = RESOURCE;
   process.env.AQ_MCP_DESCOPE_CLIENT_ID = DESCOPE_CLIENT_ID;
-  process.env.VERCEL_ENV = 'preview';
   delete process.env.AQ_MCP_OAUTH_PROVIDER;
   delete process.env.AQ_MCP_OAUTH_DISCOVERY_URL;
-  delete process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC;
   process.env.DATABASE_URL = 'postgres://localhost/mcp_oauth_authorize_test';
   globalThis.__dbPgPool = {
     ended: false,
@@ -97,46 +93,29 @@ after(() => {
   );
   restoreEnvironmentValue('AQ_MCP_OAUTH_CLIENT_ID', previousEnvironment.clientId);
   restoreEnvironmentValue('AQ_MCP_RESOURCE_URI', previousEnvironment.resource);
-  restoreEnvironmentValue('VERCEL_ENV', previousEnvironment.vercelEnv);
   restoreEnvironmentValue('AQ_MCP_OAUTH_PROVIDER', previousEnvironment.oauthProvider);
   restoreEnvironmentValue('AQ_MCP_DESCOPE_CLIENT_ID', previousEnvironment.descopeClientId);
   restoreEnvironmentValue('AQ_MCP_OAUTH_DISCOVERY_URL', previousEnvironment.discoveryUrl);
-  restoreEnvironmentValue(
-    'AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC',
-    previousEnvironment.omitResourceDiagnostic,
-  );
   restoreEnvironmentValue('DATABASE_URL', previousEnvironment.databaseUrl);
 });
 
-test('authorization bridge forwards Claude code and PKCE request to Supabase', async () => {
+test('authorization bridge returns 503 when Descope OAuth is not configured', async () => {
+  // Default state: AQ_MCP_OAUTH_PROVIDER is unset, so Descope is off and
+  // there is no Supabase fallback to redirect to. A valid request must
+  // fail closed with 503, never 302 to a dead sign-in page.
   const response = await GET(authorizationRequest({
     scope: 'openid profile',
     nonce: 'synthetic-nonce',
   }));
 
-  assert.equal(response.status, 302);
+  assert.equal(response.status, 503);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
-
-  const location = new URL(response.headers.get('location'));
-  assert.equal(location.origin, 'https://oauth.example.test');
-  assert.equal(location.pathname, '/auth/v1/oauth/authorize');
-  assert.deepEqual(Object.fromEntries(location.searchParams), {
-    response_type: 'code',
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    code_challenge: CODE_CHALLENGE,
-    code_challenge_method: 'S256',
-    state: 'synthetic-state',
-    resource: RESOURCE,
-    scope: 'openid profile',
-    nonce: 'synthetic-nonce',
-  });
+  assert.deepEqual(await response.json(), { error: 'MCP OAuth is not configured.' });
 });
 
-test('authorization bridge rejects wrong clients, callbacks, resource, and PKCE', async () => {
+test('authorization bridge rejects wrong callbacks, resource, and PKCE', async () => {
   const invalidRequests = [
-    authorizationRequest({ client_id: 'other-client' }),
     authorizationRequest({ redirect_uri: 'https://attacker.example/callback' }),
     authorizationRequest({ resource: 'https://other.example/api/mcp' }),
     authorizationRequest({ code_challenge_method: 'plain' }),
@@ -147,67 +126,50 @@ test('authorization bridge rejects wrong clients, callbacks, resource, and PKCE'
   for (const request of invalidRequests) {
     assert.equal((await GET(request)).status, 400);
   }
-
-  const duplicateClient = new Request(
-    `https://mcp-isolated.example.test/authorize?${new URLSearchParams({
-      response_type: 'code',
-      redirect_uri: REDIRECT_URI,
-      code_challenge: CODE_CHALLENGE,
-      code_challenge_method: 'S256',
-      state: 'synthetic-state',
-    })}&client_id=${CLIENT_ID}&client_id=other-client`,
-  );
-  assert.equal((await GET(duplicateClient)).status, 400);
 });
 
-test('authorization bridge injects canonical resource if Claude omits it', async () => {
-  const response = await GET(authorizationRequest());
-  const location = new URL(response.headers.get('location'));
-  assert.equal(location.searchParams.get('resource'), RESOURCE);
+test('authorization bridge rejects an unregistered client when Descope is configured', async () => {
+  const originalFetch = globalThis.fetch;
+  const discoveryUrl = 'https://discovery.example.test/unregistered-client-configuration';
+  process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
+  process.env.AQ_MCP_OAUTH_DISCOVERY_URL = discoveryUrl;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, discoveryUrl);
+    return Response.json({
+      issuer: ISSUER,
+      authorization_endpoint: DESCOPE_AUTHORIZATION_ENDPOINT,
+      token_endpoint: DESCOPE_TOKEN_ENDPOINT,
+      jwks_uri: `${ISSUER}/.well-known/jwks.json`,
+      response_types_supported: ['code'],
+      code_challenge_methods_supported: ['S256'],
+    });
+  };
+
+  try {
+    assert.equal((await GET(authorizationRequest({
+      client_id: 'unregistered-claude-client',
+    }))).status, 400);
+
+    // A duplicated client_id parameter passes request validation but fails
+    // the client lookup, once Descope is configured and the flow reaches it.
+    const duplicateClient = new Request(
+      `https://mcp-isolated.example.test/authorize?${new URLSearchParams({
+        response_type: 'code',
+        redirect_uri: REDIRECT_URI,
+        code_challenge: CODE_CHALLENGE,
+        code_challenge_method: 'S256',
+        state: 'synthetic-state',
+      })}&client_id=${CLIENT_ID}&client_id=other-client`,
+    );
+    assert.equal((await GET(duplicateClient)).status, 400);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.AQ_MCP_OAUTH_PROVIDER;
+    delete process.env.AQ_MCP_OAUTH_DISCOVERY_URL;
+  }
 });
 
-test('Preview diagnostic omits only forwarded resource and preserves other OAuth parameters', async () => {
-  process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC = 'true';
-  const response = await GET(authorizationRequest({
-    scope: 'openid profile',
-    nonce: 'synthetic-nonce',
-  }));
-
-  assert.equal(response.status, 302);
-  const location = new URL(response.headers.get('location'));
-  assert.deepEqual(Object.fromEntries(location.searchParams), {
-    response_type: 'code',
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    code_challenge: CODE_CHALLENGE,
-    code_challenge_method: 'S256',
-    state: 'synthetic-state',
-    scope: 'openid profile',
-    nonce: 'synthetic-nonce',
-  });
-});
-
-test('Preview diagnostic still rejects an invalid incoming resource', async () => {
-  process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC = 'true';
-  const response = await GET(authorizationRequest({
-    resource: 'https://other.example/api/mcp',
-  }));
-
-  assert.equal(response.status, 400);
-});
-
-test('Production cannot enable the resource omission diagnostic', async () => {
-  process.env.VERCEL_ENV = 'production';
-  process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC = 'true';
-  const response = await GET(authorizationRequest());
-
-  assert.equal(response.status, 302);
-  const location = new URL(response.headers.get('location'));
-  assert.equal(location.searchParams.get('resource'), RESOURCE);
-});
-
-test('Production Descope fails closed when discovery configuration is missing', async () => {
-  process.env.VERCEL_ENV = 'production';
+test('Descope fails closed when discovery configuration is missing', async () => {
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   delete process.env.AQ_MCP_OAUTH_DISCOVERY_URL;
   const response = await GET(authorizationRequest());
@@ -215,10 +177,9 @@ test('Production Descope fails closed when discovery configuration is missing', 
   assert.equal(response.status, 503);
 });
 
-test('Production Descope authorization uses verified discovery and keeps the MCP resource internal', async () => {
+test('Descope authorization uses verified discovery and keeps the MCP resource internal', async () => {
   const originalFetch = globalThis.fetch;
   const discoveryUrl = 'https://discovery.example.test/production-oidc-configuration';
-  process.env.VERCEL_ENV = 'production';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL = discoveryUrl;
   globalThis.fetch = async (url) => {
@@ -248,17 +209,14 @@ test('Production Descope authorization uses verified discovery and keeps the MCP
     globalThis.fetch = originalFetch;
     restoreEnvironmentValue('AQ_MCP_OAUTH_PROVIDER', previousEnvironment.oauthProvider);
     restoreEnvironmentValue('AQ_MCP_OAUTH_DISCOVERY_URL', previousEnvironment.discoveryUrl);
-    restoreEnvironmentValue('VERCEL_ENV', previousEnvironment.vercelEnv);
   }
 });
 
-test('Preview Descope authorization uses its app client without forwarding the MCP resource', async () => {
+test('Descope authorization uses its app client without forwarding the MCP resource', async () => {
   const originalFetch = globalThis.fetch;
   const discoveryUrl = 'https://discovery.example.test/preview-oidc-configuration';
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL = discoveryUrl;
-  process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC = 'true';
   globalThis.fetch = async (url) => {
     assert.equal(url, discoveryUrl);
     return Response.json({
@@ -295,11 +253,10 @@ test('Preview Descope authorization uses its app client without forwarding the M
     globalThis.fetch = originalFetch;
     delete process.env.AQ_MCP_OAUTH_PROVIDER;
     delete process.env.AQ_MCP_OAUTH_DISCOVERY_URL;
-    delete process.env.AQ_MCP_OAUTH_PREVIEW_OMIT_RESOURCE_DIAGNOSTIC;
   }
 });
 
-test('Preview Descope accepts the confirmed issuer, JWKS, endpoints, and resource configuration', async () => {
+test('Descope accepts the confirmed issuer, JWKS, endpoints, and resource configuration', async () => {
   const originalFetch = globalThis.fetch;
   const previousValues = {
     issuer: process.env.AQ_MCP_OAUTH_ISSUER,
@@ -307,14 +264,12 @@ test('Preview Descope accepts the confirmed issuer, JWKS, endpoints, and resourc
     resource: process.env.AQ_MCP_RESOURCE_URI,
     discoveryUrl: process.env.AQ_MCP_OAUTH_DISCOVERY_URL,
     oauthProvider: process.env.AQ_MCP_OAUTH_PROVIDER,
-    vercelEnv: process.env.VERCEL_ENV,
   };
   process.env.AQ_MCP_OAUTH_ISSUER = DESCOPE_ISSUER;
   process.env.AQ_MCP_OAUTH_JWKS_URL = DESCOPE_JWKS_URL;
   process.env.AQ_MCP_RESOURCE_URI = DESCOPE_RESOURCE;
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL = DESCOPE_DISCOVERY_URL;
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
-  process.env.VERCEL_ENV = 'preview';
   globalThis.fetch = async (url) => {
     assert.equal(url, DESCOPE_DISCOVERY_URL);
     return Response.json({
@@ -346,13 +301,11 @@ test('Preview Descope accepts the confirmed issuer, JWKS, endpoints, and resourc
     restoreEnvironmentValue('AQ_MCP_RESOURCE_URI', previousValues.resource);
     restoreEnvironmentValue('AQ_MCP_OAUTH_DISCOVERY_URL', previousValues.discoveryUrl);
     restoreEnvironmentValue('AQ_MCP_OAUTH_PROVIDER', previousValues.oauthProvider);
-    restoreEnvironmentValue('VERCEL_ENV', previousValues.vercelEnv);
   }
 });
 
-test('Preview Descope discovery must match configured issuer and JWKS URL', async () => {
+test('Descope discovery must match configured issuer and JWKS URL', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/mismatched-preview-oidc-configuration';
@@ -375,9 +328,8 @@ test('Preview Descope discovery must match configured issuer and JWKS URL', asyn
   }
 });
 
-test('Preview Descope discovery rejects authorization or token endpoints outside the confirmed endpoints', async () => {
+test('Descope discovery rejects authorization or token endpoints outside the confirmed endpoints', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/unexpected-endpoints';
@@ -409,9 +361,8 @@ test('Preview Descope discovery rejects authorization or token endpoints outside
   }
 });
 
-test('Preview Descope discovery rejects a mismatched JWKS URL', async () => {
+test('Descope discovery rejects a mismatched JWKS URL', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/mismatched-jwks-configuration';
@@ -434,9 +385,8 @@ test('Preview Descope discovery rejects a mismatched JWKS URL', async () => {
   }
 });
 
-test('Preview Descope discovery rejects metadata missing a required endpoint', async () => {
+test('Descope discovery rejects metadata missing a required endpoint', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/missing-endpoint-configuration';
@@ -458,9 +408,8 @@ test('Preview Descope discovery rejects metadata missing a required endpoint', a
   }
 });
 
-test('Preview Descope discovery rejects malformed JSON and unsupported code or S256 metadata', async () => {
+test('Descope discovery rejects malformed JSON and unsupported code or S256 metadata', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/invalid-capabilities-configuration';
@@ -497,9 +446,8 @@ test('Preview Descope discovery rejects malformed JSON and unsupported code or S
   }
 });
 
-test('Preview Descope discovery rejects redirects without following them', async () => {
+test('Descope discovery rejects redirects without following them', async () => {
   const originalFetch = globalThis.fetch;
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL =
     'https://discovery.example.test/redirected-configuration';

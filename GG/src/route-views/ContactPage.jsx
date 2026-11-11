@@ -84,11 +84,9 @@ contactReasonIcons['Privacy or Rights Request'] = '\uD83D\uDD12';
 
 const whyChoose = [
   'Free public prompt library for everyone',
-  'Optional Starter and Pro memberships',
   'Editorial review without unsupported testing claims',
   'New prompts added every week',
   'Designed for Instagram and social media creators',
-  'Transparent monthly and yearly pricing',
 ];
 
 const faqs = [
@@ -269,8 +267,8 @@ export default function ContactPage() {
                   Have a question, prompt request, or feedback? We would love to hear from you.
                 </p>
                 <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
-                  AQPrompts is a digital AI prompt library built for creators, with free public resources and optional
-                  Starter and Pro memberships. We are always looking to improve our prompt library and make it more useful for Instagram creators, photographers, and content marketers.
+                  AQPrompts is a digital AI prompt library built for creators, with free public resources for everyone.
+                  We are always looking to improve our prompt library and make it more useful for Instagram creators, photographers, and content marketers.
                   Whether you want to request a new prompt category, report a broken prompt, suggest a feature, or just
                   say hello, we are here to help.
                 </p>

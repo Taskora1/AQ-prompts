@@ -11,6 +11,7 @@ import {
   isMcpOAuthClientRegistered,
   listRecentUnlinkedMcpOAuthSubjects,
   listMcpOAuthClients,
+  deleteMcpOAuthBrokerTokensForSubject,
   McpOAuthBrokerStoreUnavailableError,
 } from '@/lib/mcp-oauth-broker-db';
 import { getMcpResourceMetadataResource, isDescopeOAuthEnabled } from '@/lib/mcp-auth';
@@ -175,6 +176,14 @@ export async function POST(request) {
     const authorization = await revokeMcpOAuthAuthorization(input.subject, clientId);
     if (!authorization) {
       return NextResponse.json({ error: 'Active MCP authorization not found.' }, { status: 404 });
+    }
+    // A revoked subject keeps no usable session: delete their broker access
+    // and refresh tokens too. Best-effort — the revocation itself already
+    // succeeded, so a store failure here must not undo it.
+    try {
+      await deleteMcpOAuthBrokerTokensForSubject(input.subject, clientId);
+    } catch (error) {
+      console.error('Admin MCP revoke could not delete broker tokens:', error?.code || error?.name || 'unknown');
     }
     return NextResponse.json({ success: true, authorization });
   } catch (error) {

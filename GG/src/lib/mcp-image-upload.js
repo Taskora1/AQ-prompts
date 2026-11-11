@@ -3,6 +3,13 @@ import crypto from 'node:crypto';
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_BASE64_LENGTH = 4 * Math.ceil(MAX_IMAGE_BYTES / 3);
 const ALLOWED_FORMATS = 'jpg,png,webp';
+// Same approved Cloudinary overlay watermark as the admin upload route
+// (Variant A badge: logo + "AQPROMPTS" + "www.aqprompts.com", 24% of the
+// image width, bottom-right, 20 px margin, 92% opacity). Applied by
+// Cloudinary at upload time — no sharp, which cannot run on Workers.
+const WATERMARK_TRANSFORMATION =
+  'l_aqprompts:watermark-badge,c_scale,fl_relative,w_0.24,o_92/fl_layer_apply,g_south_east,x_20,y_20';
+const WATERMARK_CONTEXT = 'aqprompts_watermark=v1';
 const IMAGE_TYPES = {
   'image/jpeg': {
     extension: 'jpg',
@@ -82,9 +89,11 @@ export async function uploadMcpImageFile({ imageBase64, contentType }) {
   const publicId = `mcp-${crypto.randomBytes(12).toString('hex')}`;
   const signedParams = {
     allowed_formats: ALLOWED_FORMATS,
+    context: WATERMARK_CONTEXT,
     folder,
     public_id: publicId,
     timestamp,
+    transformation: WATERMARK_TRANSFORMATION,
   };
   const formData = new FormData();
   formData.set('file', new Blob([bytes], { type: contentType }), `${publicId}.${imageType.extension}`);
@@ -93,6 +102,8 @@ export async function uploadMcpImageFile({ imageBase64, contentType }) {
   formData.set('folder', folder);
   formData.set('public_id', publicId);
   formData.set('allowed_formats', ALLOWED_FORMATS);
+  formData.set('context', WATERMARK_CONTEXT);
+  formData.set('transformation', WATERMARK_TRANSFORMATION);
   formData.set('signature', buildSignature(signedParams, apiSecret));
 
   let response;

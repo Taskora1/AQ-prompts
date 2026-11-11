@@ -7,7 +7,7 @@ import JsonLd from '@/components/JsonLd';
 import { getApprovedSiteReviewData } from '@/lib/site-reviews-db';
 import { SITE_NAME, SITE_URL, absoluteUrl } from '@/lib/seo';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // 1h — reviews change only when the admin approves new ones
 
 export const metadata = {
   title: 'Feedback and Reviews | AQPrompts',

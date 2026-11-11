@@ -9,7 +9,7 @@ Review date: July 26, 2026.
 ## Passed items
 
 - 36/36 indexable routes passed the automated content checks.
-- Image register contains 701 assets: 677 owner-confirmed, 0 critical-risk.
+- Image register contains 731 assets: 707 owner-confirmed, 0 critical-risk.
 - 0 critical-risk media records are required to render as `/images/verified/media-evidence-placeholder.svg` on public prompt output.
 - AdSense integration: disabled pending approval (pass).
 - Fake rating pattern in application source: not found (pass).
@@ -24,7 +24,7 @@ Review date: July 26, 2026.
 
 - Do not apply until the production deployment is checked after the final build.
 - Review the 0 critical-risk source assets and remove archived files or restore only after the specific risk is cleared.
-- Retain individual generation records for new media; 670 AI assets currently rely on the owner project-level declaration.
+- Retain individual generation records for new media; 700 AI assets currently rely on the owner project-level declaration.
 - AdSense approval and account setup are separate from this deployment; do not add the loader or ads.txt until approved.
 - Recheck external links and third-party brand guidelines near the submission date.
 

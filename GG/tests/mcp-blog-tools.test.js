@@ -316,6 +316,9 @@ test('MCP blog tool schema rejects caller-supplied ownership identity', async ()
   const response = await handleMcpProtocolRequest(new Request('https://www.aqprompts.com/api/mcp', {
     method: 'POST',
     headers: {
+      // DNS rebinding protection is on: the transport rejects requests
+      // without a Host header, so synthetic requests must carry a real one.
+      host: 'www.aqprompts.com',
       'content-type': 'application/json',
       accept: 'application/json, text/event-stream',
     },

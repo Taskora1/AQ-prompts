@@ -23,12 +23,21 @@ import { McpImageUploadError } from './mcp-image-upload.js';
 import { McpAuthorizationError } from './mcp-oauth-db.js';
 
 const PAGE_SIZE_MAX = 50;
+// The MCP transport must accept the largest tool payload: upload_photo_image
+// allows a 3 MB image as ~4.2 MB of base64 plus the JSON-RPC envelope, so the
+// body cap is 8 MB. (It was 64 KB, which rejected every real image with a
+// 413 before the tool ever ran.)
+export const MCP_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 const CATEGORY_IDS = z.array(z.number().int().positive()).max(30).optional();
 const TAGS = z.array(z.string().trim().min(1).max(100)).max(30).optional();
 const VERCEL_HOST = process.env.VERCEL_URL;
 const ALLOWED_HOSTS = [
   'www.aqprompts.com',
   'aqprompts.com',
+  // Live Cloudflare Worker origin (custom domain is primary, workers.dev is
+  // the fallback origin). Both must be listed or DNS rebinding protection
+  // would reject legitimate MCP clients connecting to the live Worker.
+  'aqprompts.abdulqudoos-4755.workers.dev',
   'localhost:3000',
   '127.0.0.1:3000',
   ...(typeof VERCEL_HOST === 'string' && /^[a-z0-9.-]+$/i.test(VERCEL_HOST) ? [VERCEL_HOST] : []),
@@ -88,6 +97,7 @@ const uploadImageSchema = z.object({
 const blogListSchema = z.object({
   page: z.number().int().min(1).max(1000).optional(),
   pageSize: z.number().int().min(1).max(PAGE_SIZE_MAX).optional(),
+  search: z.string().max(200).optional(),
   status: z.enum(['all', 'draft', 'published']).optional(),
 }).strict();
 const blogGetSchema = z.object({
@@ -223,7 +233,7 @@ export function createMcpServer(authentication = null) {
   registerTool(
     server,
     'list_blog_posts',
-    'List published blog posts and only your owned or explicitly assigned drafts. Existing unassigned drafts are hidden.',
+    'List published blog posts and only your owned or explicitly assigned drafts, with optional title/content search. Existing unassigned drafts are hidden.',
     blogListSchema,
     listBlogPosts,
     authentication,
@@ -275,7 +285,11 @@ export async function handleMcpProtocolRequest(request, authentication = null) {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
-    maxRequestBodySize: 64 * 1024,
+    maxRequestBodySize: MCP_MAX_REQUEST_BODY_BYTES,
+    // Deliberately enabled: the list above covers every legitimate origin
+    // (custom domain, workers.dev fallback, local dev), so rebinding
+    // protection only rejects hosts that should never reach this endpoint.
+    enableDnsRebindingProtection: true,
     allowedHosts: ALLOWED_HOSTS,
   });
 

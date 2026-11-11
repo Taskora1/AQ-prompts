@@ -264,12 +264,14 @@ test('isolated resource configuration updates metadata, challenge, and strict au
   try {
     assert.deepEqual(getMcpProtectedResourceMetadata(), {
       resource: ISOLATED_RESOURCE,
-      authorization_servers: [ISSUER],
+      authorization_servers: ['https://mcp-isolated.example.test'],
+      scopes_supported: ['openid', 'profile', 'email'],
     });
     const metadataResponse = await getProtectedResourceMetadata();
     assert.deepEqual(await metadataResponse.json(), {
       resource: ISOLATED_RESOURCE,
-      authorization_servers: [ISSUER],
+      authorization_servers: ['https://mcp-isolated.example.test'],
+      scopes_supported: ['openid', 'profile', 'email'],
     });
     assert.equal(
       getMcpOAuthChallenge(),
@@ -315,7 +317,8 @@ test('OAuth endpoint advertises protected-resource metadata and does not run uns
   assert.equal(metadataResponse.status, 200);
   assert.deepEqual(await metadataResponse.json(), {
     resource: RESOURCE,
-    authorization_servers: [ISSUER],
+    authorization_servers: ['https://www.aqprompts.com'],
+    scopes_supported: ['openid', 'profile', 'email'],
   });
 
   const validOAuth = await postMcp(bearerRequest(createToken()));
@@ -342,43 +345,38 @@ test('invalid OAuth tokens never fall back to API-key authentication', async () 
   });
 });
 
-test('Preview Descope auth failures log only a fixed reason code', async () => {
-  const originalVercelEnv = process.env.VERCEL_ENV;
+test('Descope auth failures log nothing and never leak a reason code', async () => {
+  // The old Preview-only console.warn in verifySignedMcpJwt was removed:
+  // auth failures must not emit any log line, in any environment, so no
+  // failure detail can leak through logs.
   const originalProvider = process.env.AQ_MCP_OAUTH_PROVIDER;
   const originalWarn = console.warn;
   const warnings = [];
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   console.warn = (...args) => warnings.push(args);
 
   try {
     const response = await postMcp(bearerRequest('invalid'));
     assert.equal(response.status, 401);
-    assert.deepEqual(warnings, [[
-      '[MCP OAuth] Preview token authentication rejected:',
-      'bearer_missing_or_invalid',
-    ]]);
+    assert.deepEqual(warnings, []);
 
     process.env.VERCEL_ENV = 'production';
     await postMcp(bearerRequest('invalid'));
-    assert.equal(warnings.length, 1);
+    assert.deepEqual(warnings, []);
   } finally {
     console.warn = originalWarn;
     restoreEnvironment({
-      VERCEL_ENV: originalVercelEnv,
       AQ_MCP_OAUTH_PROVIDER: originalProvider,
     });
   }
 });
 
-test('Preview Descope treats MCP access tokens as opaque and logs only a fixed failure reason', async () => {
+test('Descope treats MCP access tokens as opaque and never logs the token', async () => {
   const previousEnvironment = captureEnvironment([
-    'VERCEL_ENV',
     'AQ_MCP_OAUTH_PROVIDER',
   ]);
   const previousWarn = console.warn;
   const warnings = [];
-  process.env.VERCEL_ENV = 'preview';
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   console.warn = (...args) => warnings.push(args);
 
@@ -386,10 +384,7 @@ test('Preview Descope treats MCP access tokens as opaque and logs only a fixed f
     const opaqueToken = 'synthetic-opaque-broker-token-that-is-not-a-jwt-1234567890';
     const response = await postMcp(bearerRequest(opaqueToken));
     assert.equal(response.status, 401);
-    assert.deepEqual(warnings, [[
-      '[MCP OAuth] Preview token authentication rejected:',
-      'jwt_invalid',
-    ]]);
+    assert.deepEqual(warnings, []);
     assert.equal(JSON.stringify(warnings).includes(opaqueToken), false);
   } finally {
     console.warn = previousWarn;

@@ -6,11 +6,16 @@ import Breadcrumb from '@/components/Breadcrumb';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import JsonLd from '@/components/JsonLd';
-import { getAuthorProfileBySlug, getPublishedBlogPostsByAuthor } from '@/lib/author-profiles-db';
+import { getAuthorProfileBySlug, getPublishedBlogPostsByAuthor, listAuthorSitemapRows } from '@/lib/author-profiles-db';
 import { buildMetadata } from '@/lib/metadata';
 import { absoluteUrl, buildBreadcrumbSchema, buildWebsiteSchema } from '@/lib/seo';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 86400; // 24h — author profiles/posts change rarely; on-demand revalidation via revalidateBlogContent
+
+export async function generateStaticParams() {
+  const rows = await listAuthorSitemapRows();
+  return rows.filter((row) => row?.slug).map((row) => ({ slug: row.slug }));
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;

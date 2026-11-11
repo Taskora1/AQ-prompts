@@ -289,6 +289,13 @@ export async function rotateMcpOAuthBrokerRefreshToken({
             AND client.client_id = token.client_id
             AND client.redirect_uri = $3
             AND client.refresh_enabled = TRUE
+            AND NOT EXISTS (
+              SELECT 1
+              FROM mcp_oauth_authorizations authz
+              WHERE authz.subject = token.subject
+                AND authz.client_id = token.client_id
+                AND authz.revoked_at IS NOT NULL
+            )
           RETURNING token.subject, token.client_id, token.resource
         ),
         inserted_access AS (
@@ -372,4 +379,63 @@ export async function lookupMcpOAuthBrokerToken(accessToken) {
     subject: row.subject,
     clientId: row.clientId,
   };
+}
+
+// RFC 7009 token revocation: delete a presented token (access or refresh)
+// from both broker stores by its hash. Returns true when a row was deleted.
+// Callers must still return HTTP 200 for unknown tokens so revocation does
+// not leak whether a token existed.
+export async function revokeMcpOAuthBrokerTokens(token) {
+  if (
+    typeof token !== 'string'
+    || token.length < 32
+    || token.length > MAX_BROKER_TOKEN_LENGTH
+  ) {
+    return false;
+  }
+  const tokenHash = hashToken(token);
+  try {
+    const [access, refresh] = await Promise.all([
+      getPgPool().query(
+        'DELETE FROM mcp_oauth_broker_tokens WHERE token_hash = $1',
+        [tokenHash],
+      ),
+      getPgPool().query(
+        'DELETE FROM mcp_oauth_broker_refresh_tokens WHERE token_hash = $1',
+        [tokenHash],
+      ),
+    ]);
+    return (access.rowCount || 0) + (refresh.rowCount || 0) > 0;
+  } catch {
+    throw new McpOAuthBrokerStoreUnavailableError();
+  }
+}
+
+// Delete every broker token (access + refresh) held by one OAuth subject for
+// one client. Used when a Super Admin revokes the subject's authorization,
+// so a revoked subject keeps no usable or refreshable session.
+export async function deleteMcpOAuthBrokerTokensForSubject(subject, clientId) {
+  if (
+    typeof subject !== 'string'
+    || subject.length === 0
+    || typeof clientId !== 'string'
+    || clientId.length === 0
+  ) {
+    throw new TypeError('MCP OAuth broker token subject data is invalid.');
+  }
+  try {
+    const [access, refresh] = await Promise.all([
+      getPgPool().query(
+        'DELETE FROM mcp_oauth_broker_tokens WHERE subject = $1 AND client_id = $2',
+        [subject, clientId],
+      ),
+      getPgPool().query(
+        'DELETE FROM mcp_oauth_broker_refresh_tokens WHERE subject = $1 AND client_id = $2',
+        [subject, clientId],
+      ),
+    ]);
+    return (access.rowCount || 0) + (refresh.rowCount || 0);
+  } catch {
+    throw new McpOAuthBrokerStoreUnavailableError();
+  }
 }

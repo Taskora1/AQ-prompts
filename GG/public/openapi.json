@@ -10,30 +10,6 @@
       "url": "https://www.aqprompts.com"
     }
   ],
-  "paths": {
-    "/data/prompts-index.json": {
-      "get": {
-        "summary": "Get all AI prompts",
-        "description": "Returns all available AI image prompts",
-        "responses": {
-          "200": {
-            "description": "List of prompts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "prompts": {
-                      "type": "array"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+  "paths": {}
 }
 

@@ -24,6 +24,7 @@ export const dynamic = 'force-dynamic';
 
 const CLAUDE_REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback';
 const TOKEN_TYPE = 'Bearer';
+const OAUTH_SCOPE = 'openid profile email';
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 64 * 1024;
 const TOKEN_MAX_AGE_SECONDS = 3600;
@@ -118,9 +119,10 @@ export async function POST(request) {
     throw error;
   }
 
-  const resource = suppliedResource
-    || (grantType === 'refresh_token' && !form.has('resource') ? expectedResource : null);
-  if (!clientId || !resource || resource !== expectedResource) {
+  // RFC 8707 makes `resource` optional: a supplied value must match the
+  // canonical resource, but omitting it defaults to the canonical resource.
+  const resource = suppliedResource || expectedResource;
+  if (!clientId || resource !== expectedResource) {
     return oauthError('invalid_request', 400);
   }
 
@@ -153,6 +155,7 @@ export async function POST(request) {
         access_token: accessToken,
         token_type: TOKEN_TYPE,
         expires_in: TOKEN_MAX_AGE_SECONDS,
+        scope: OAUTH_SCOPE,
         refresh_token: replacementRefreshToken,
       }, {
         headers: {
@@ -312,6 +315,7 @@ export async function POST(request) {
     access_token: accessToken,
     token_type: TOKEN_TYPE,
     expires_in: expiresIn,
+    scope: OAUTH_SCOPE,
     ...(issuedRefreshToken ? { refresh_token: issuedRefreshToken } : {}),
   }, {
     headers: {

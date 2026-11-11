@@ -3,12 +3,16 @@ import { notFound } from 'next/navigation';
 import JsonLd from '@/components/JsonLd';
 import SinglePostPage from '@/route-views/SinglePostPage';
 import { getBlogPostSnapshotBySlug } from '@/lib/blog-api';
-import { getPublishedBlogPostBySlug } from '@/lib/blog-db';
+import { getPublishedBlogPostBySlug, getPublishedBlogPostsSlim } from '@/lib/blog-db';
 import { buildBlogPostJsonLd, buildBlogPostMetadata } from '@/lib/metadata';
 
 export const revalidate = 86400; // 24h safety net — primary invalidation is on-demand via revalidateBlogContent
 
-// generateStaticParams removed — using ISR with on-demand rendering from Neon
+// Pre-render all published posts at build time so no request pays the render cost.
+export async function generateStaticParams() {
+  const posts = await getPublishedBlogPostsSlim();
+  return posts.filter((post) => post?.slug).map((post) => ({ slug: post.slug }));
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;

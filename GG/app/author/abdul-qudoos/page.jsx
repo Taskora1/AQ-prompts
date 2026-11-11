@@ -16,7 +16,6 @@ import { buildMetadata } from '@/lib/metadata';
 import { absoluteUrl, buildBreadcrumbSchema, buildWebsiteSchema } from '@/lib/seo';
 
 export const revalidate = 86400; // 24h safety net — primary invalidation is on-demand via revalidateBlogContent
-export const dynamic = 'force-dynamic';
 
 const tocItems = [
   { label: "Founder's Role", href: '#founders-role' },

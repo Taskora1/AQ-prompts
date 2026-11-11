@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, CreditCard, FileText, LockKeyhole, RotateCcw
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 
-const LAST_UPDATED = 'July 14, 2026';
+const LAST_UPDATED = 'November 11, 2026';
 
 const sections = [
   {
@@ -131,45 +131,28 @@ const sections = [
   },
   {
     id: 'paddle',
-    title: '7. Paddle billing and Merchant of Record',
+    title: '7. Payments',
     content: (
       <>
         <p>
-          Paid transactions are processed by Paddle, which acts as Merchant of Record and authorized reseller for the
-          digital product. This means Paddle is responsible for charging you, processing payment, calculating and
-          collecting applicable taxes, issuing transaction documents, and providing payment-related buyer support.
-          AQPrompts remains responsible for the digital product, access, and product support.
-        </p>
-        <p>
-          Your purchase is also subject to the{' '}
-          <a href="https://www.paddle.com/legal/buyer-terms" target="_blank" rel="noreferrer">
-            Paddle Buyer Terms
-          </a>. For Paddle transaction lookup, cancellation, or payment support, visit{' '}
-          <a href="https://paddle.net" target="_blank" rel="noreferrer">Paddle.net</a>.
+          Paid memberships are currently paused. No payment processor is used at present and no purchases can be
+          made through AQPrompts. If paid memberships return, the payment terms in effect at that time will apply.
         </p>
       </>
     ),
   },
   {
     id: 'cancellation-refunds',
-    title: '8. Cancellation, failed payments, and refunds',
+    title: '8. Cancellation and refunds',
     content: (
       <>
         <p>
-          You may cancel a subscription through the available billing portal, Paddle buyer support, or by contacting
-          us. Cancellation normally takes effect at the end of the current paid billing period, and you retain access
-          until that date unless the subscription is cancelled immediately for fraud, misuse, chargeback, legal, or
-          security reasons.
+          AQPrompts is currently free. There are no subscriptions to cancel, no payments, and no renewals, so there
+          is nothing to refund. Our <Link href="/refund-policy">Refund Policy</Link> explains this in full.
         </p>
         <p>
-          Cancellation prevents future renewals but does not automatically refund amounts already charged. Refund
-          requests are handled under our <Link href="/refund-policy">Refund Policy</Link>, Paddle&rsquo;s applicable
-          buyer policies, and mandatory consumer law. Nothing in these Terms limits a non-waivable right you have
-          under applicable law.
-        </p>
-        <p>
-          If payment fails, access may be restricted, paused, or terminated after any applicable retry or grace
-          period. You remain responsible for valid charges incurred before cancellation.
+          If paid memberships are ever reintroduced, the terms in force at that time will explain how cancellation
+          and refunds work. Nothing in these Terms limits a non-waivable right you have under applicable law.
         </p>
       </>
     ),
@@ -252,7 +235,7 @@ const sections = [
     title: '13. Third-party services and links',
     content: (
       <p>
-        The Services may link to or integrate with Paddle, AI platforms, analytics providers, email services,
+        The Services may link to or integrate with AI platforms, analytics providers, email services,
         community platforms, and other third parties. We do not control their availability, security, content, or
         policies and are not responsible for losses caused by your independent use of a third-party service. Review
         the third party&rsquo;s terms and privacy policy before use.
@@ -270,9 +253,9 @@ const sections = [
           availability, permanent storage of saved items, or compatibility with every browser, device, or AI model.
         </p>
         <p>
-          If we permanently discontinue a material paid Service during an active prepaid period, we will provide an
+          If we permanently discontinue a material Service, we will provide an
           appropriate remedy as required by applicable law, which may include continued access, replacement service,
-          or a prorated refund processed through Paddle.
+          or a prorated refund where applicable.
         </p>
       </>
     ),
@@ -283,7 +266,7 @@ const sections = [
     content: (
       <p>
         Our <Link href="/privacy">Privacy Policy</Link> explains how we collect, use, disclose, and protect personal
-        information. Paddle and other third parties process information under their own privacy notices when you use
+        information. Other third parties process information under their own privacy notices when you use
         their services.
       </p>
     ),
@@ -366,8 +349,7 @@ const sections = [
         </p>
         <p>
           Subject to any mandatory consumer forum or law that applies to you, disputes relating to AQPrompts or these
-          Terms will be submitted to courts of competent jurisdiction in Pakistan. Paddle-related purchases may also
-          be governed by Paddle&rsquo;s Buyer Terms and applicable mandatory consumer protections.
+          Terms will be submitted to courts of competent jurisdiction in Pakistan.
         </p>
       </>
     ),
@@ -413,10 +395,6 @@ const sections = [
           <strong>AQPrompts</strong><br />
           Website: <a href="https://www.aqprompts.com">www.aqprompts.com</a><br />
           Email: <a href="mailto:hello@aqprompts.com">hello@aqprompts.com</a>
-        </p>
-        <p>
-          For a Paddle transaction, subscription lookup, or payment question, you may also visit{' '}
-          <a href="https://paddle.net" target="_blank" rel="noreferrer">Paddle.net</a>.
         </p>
       </>
     ),

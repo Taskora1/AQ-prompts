@@ -345,38 +345,6 @@ export default function HomeLanding({
           </div>
         </section>
 
-        {/* Paid membership promotion paused. Keep this block for a future VIP relaunch.
-        <section className="bg-white py-14 dark:bg-[#0a0a0f] sm:py-16" aria-labelledby="home-paid-membership-title">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid gap-6 rounded-[1.5rem] border border-[#e5e7eb] bg-[#f9fafb] p-5 shadow-[0_20px_55px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#111118] sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#c2410c]">Paid membership</p>
-                <h2 id="home-paid-membership-title" className="mt-3 text-3xl font-black tracking-normal text-slate-950 sm:text-4xl dark:text-white">Promptshe VIP Creator Club by AQPrompts</h2>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Get premium AI prompts, weekly prompt drops, 20 custom prompt requests, priority support, and practical AI editing workflows.
-                </p>
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  <Link href="/vip-creator-club" className="btn-premium inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#ff6b35] px-6 text-sm font-black text-[#111118] transition hover:bg-[#e85d28]">
-                    Join for $5/month
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link href="/pricing" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#e5e7eb] bg-white px-6 text-sm font-black text-slate-950 transition hover:border-[#ff6b35] hover:text-[#c2410c] dark:border-white/10 dark:bg-[#0a0a0f] dark:text-white">
-                    View pricing
-                  </Link>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                {['Starter: $5/month or $50/year', 'Pro: $10/month or $100/year', 'Secure localized checkout by Paddle'].map((item) => (
-                  <div key={item} className="rounded-2xl border border-[#e5e7eb] bg-white p-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-[#0a0a0f] dark:text-slate-100">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-        */}
-
         <section className="bg-white py-10 sm:py-16 dark:bg-[#0a0a0f]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <SectionHeading title="Learn Better AI Image Prompting" description="Practical guides to help you write, refine, and use image prompts." actionHref="/blog" actionLabel="View all guides" />

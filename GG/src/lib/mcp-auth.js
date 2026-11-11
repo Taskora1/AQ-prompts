@@ -54,12 +54,12 @@ export class McpOAuthMetadataUnavailableError extends Error {
 }
 
 export function isDescopeOAuthEnabled() {
-  return ['preview', 'production'].includes(process.env.VERCEL_ENV)
-    && process.env[OAUTH_PROVIDER_ENV] === 'descope';
-}
-
-export function isDescopePreviewOAuthEnabled() {
-  return process.env.VERCEL_ENV === 'preview' && isDescopeOAuthEnabled();
+  // Descope mode is gated on the OAuth provider alone. Cloudflare Workers
+  // never sets VERCEL_ENV, so requiring it disabled the whole Descope flow
+  // live (register/token/authorize all failed) even though every Descope
+  // variable was configured. The Descope client ID is still required by
+  // getOAuthConfiguration() whenever Descope mode is on.
+  return process.env[OAUTH_PROVIDER_ENV] === 'descope';
 }
 
 function isHttpsUrl(value) {
@@ -462,16 +462,6 @@ async function verifySignedMcpJwt(token) {
     || typeof claims !== 'object'
     || Array.isArray(claims)
   ) {
-    if (isDescopePreviewOAuthEnabled()) {
-      console.warn('[MCP OAuth] Preview JWT header/payload rejected:', {
-        alg: header?.alg === 'RS256' || header?.alg === 'ES256' ? header.alg : 'other',
-        kidPresent: typeof header?.kid === 'string' && header.kid.length > 0,
-        critPresent: header?.crit !== undefined,
-        headerObject: Boolean(header && typeof header === 'object' && !Array.isArray(header)),
-        payloadObject: Boolean(claims && typeof claims === 'object' && !Array.isArray(claims)),
-        configuredAlgorithm: ALLOWED_ALGORITHMS.has(signingAlgorithm) ? signingAlgorithm : 'other',
-      });
-    }
     throw new InvalidMcpTokenError('jwt_header_or_payload_invalid');
   }
 
@@ -720,23 +710,27 @@ export async function authenticateMcpRequest(request) {
 }
 
 export function getMcpProtectedResourceMetadata() {
-  const { issuer, resource } = getOAuthConfiguration();
+  const { resource } = getOAuthConfiguration();
+  // Descope is the only supported OAuth path, so the authorization server
+  // for this resource is always this site's own origin (the Descope-backed
+  // authorization server). The legacy Supabase issuer is never advertised.
   return {
     resource,
-    authorization_servers: [isDescopeOAuthEnabled() ? new URL(resource).origin : issuer],
-    ...(isDescopeOAuthEnabled()
-      ? { scopes_supported: ['openid', 'profile', 'email'] }
-      : {}),
+    authorization_servers: [new URL(resource).origin],
+    scopes_supported: ['openid', 'profile', 'email'],
   };
 }
 
 export function getMcpAuthorizationServerMetadata() {
-  const { resource } = getOAuthConfiguration();
+  const { jwksUrl, resource } = getOAuthConfiguration();
   const issuer = new URL(resource).origin;
   return {
     issuer,
     authorization_endpoint: new URL('/authorize', issuer).toString(),
     token_endpoint: new URL('/oauth/token', issuer).toString(),
+    revocation_endpoint: new URL('/oauth/revoke', issuer).toString(),
+    jwks_uri: jwksUrl,
+    scopes_supported: ['openid', 'profile', 'email'],
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],

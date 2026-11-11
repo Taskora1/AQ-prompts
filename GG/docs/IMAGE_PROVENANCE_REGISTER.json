@@ -5,12 +5,12 @@
   "ownerDeclaration": "content/provenance/OWNER_MEDIA_DECLARATION.json",
   "publicFallbackAsset": "/images/verified/media-evidence-placeholder.svg",
   "summary": {
-    "total": 701,
+    "total": 731,
     "verified": 4,
-    "ownerConfirmed": 677,
+    "ownerConfirmed": 707,
     "unverified": 20,
-    "Low": 392,
-    "Medium": 309,
+    "Low": 397,
+    "Medium": 334,
     "High": 0,
     "Critical": 0
   },
@@ -46,12 +46,14 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 205445,
-      "width": 500,
-      "height": 500,
+      "bytes": 9394,
+      "width": 180,
+      "height": 180,
       "format": "png",
-      "sha256": "3da5e683ceb8b40992dd1c6da70befa20346dca01bafc959cd561eb234307205",
-      "duplicateAssetPaths": []
+      "sha256": "7a7c8f15f3f225339f843cd80a12bc0ec1a8f18eeb064ef6e36cf63c1ae6f07f",
+      "duplicateAssetPaths": [
+        "/aqprompts-logo-icon.png"
+      ]
     },
     {
       "assetId": "asset-4a4b6267ccf4",
@@ -84,11 +86,11 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 274172,
-      "width": 500,
-      "height": 500,
+      "bytes": 43841,
+      "width": 512,
+      "height": 512,
       "format": "svg",
-      "sha256": "71734d636308e0cffc67c164f225b3fe27adb8532e6f271a1cb1d52664362425",
+      "sha256": "c7f608d9538cdfedc99717b61a8335e0e469b6c347e942cd9446169d3fa19b31",
       "duplicateAssetPaths": [
         "/favicon.svg"
       ]
@@ -124,12 +126,14 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 33113,
+      "bytes": 9394,
       "width": 180,
       "height": 180,
       "format": "png",
-      "sha256": "973db6f1d183ab066a1c4089f1e08fbb083c4edfcaa83ff48a209c579f11c50a",
-      "duplicateAssetPaths": []
+      "sha256": "7a7c8f15f3f225339f843cd80a12bc0ec1a8f18eeb064ef6e36cf63c1ae6f07f",
+      "duplicateAssetPaths": [
+        "/apple-touch-icon.png"
+      ]
     },
     {
       "assetId": "asset-9e810356d734",
@@ -162,12 +166,14 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 17710,
-      "width": 256,
-      "height": 256,
+      "bytes": 32904,
+      "width": 512,
+      "height": 512,
       "format": "webp",
-      "sha256": "e2d0677f20933394a12289948ff6c098056cfd25bd2c29fe697991bd44ed73c4",
-      "duplicateAssetPaths": []
+      "sha256": "772a083a016d295bff34378dc6c6f0e9be66dfcf5fc9727a05ea72aa3784d917",
+      "duplicateAssetPaths": [
+        "/aqprompts-navbar-logo.webp"
+      ]
     },
     {
       "assetId": "asset-1f78de73f88f",
@@ -200,12 +206,14 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 8534,
-      "width": 168,
-      "height": 168,
+      "bytes": 32904,
+      "width": 512,
+      "height": 512,
       "format": "webp",
-      "sha256": "6c0ec93b463b1cd28f4bf0f1edbe4224d8ecaafcc86ddf8f13306fe372fa4cb2",
-      "duplicateAssetPaths": []
+      "sha256": "772a083a016d295bff34378dc6c6f0e9be66dfcf5fc9727a05ea72aa3784d917",
+      "duplicateAssetPaths": [
+        "/aqprompts-logo.webp"
+      ]
     },
     {
       "assetId": "asset-5fd760b33c68",
@@ -314,11 +322,11 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 2430,
+      "bytes": 1871,
       "width": 32,
       "height": 32,
       "format": "png",
-      "sha256": "77ae3b854d7d8a5a2704be89b68a63f6566a3c6747ee154d42cdaf9419f2b0f0",
+      "sha256": "ff26e9e2e2bc59d71dc4491214dd840fa861f4a184fa084f0eb213a69d95db7d",
       "duplicateAssetPaths": []
     },
     {
@@ -352,11 +360,11 @@
       "notes": "No reliable provenance record was found in the repository.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 274172,
-      "width": 500,
-      "height": 500,
+      "bytes": 43841,
+      "width": 512,
+      "height": 512,
       "format": "svg",
-      "sha256": "71734d636308e0cffc67c164f225b3fe27adb8532e6f271a1cb1d52664362425",
+      "sha256": "c7f608d9538cdfedc99717b61a8335e0e469b6c347e942cd9446169d3fa19b31",
       "duplicateAssetPaths": [
         "/aqprompts-icon.svg"
       ]
@@ -25327,11 +25335,11 @@
       "notes": "Trademark ownership remains with the named third party.",
       "evidenceFileLocation": "evidence_required",
       "reviewedAt": "2026-07-26",
-      "bytes": 924,
+      "bytes": 921,
       "width": 32,
       "height": 32,
       "format": "svg",
-      "sha256": "849ed5502e3b1b1f0a1c071690902b6d8c9e5123aabeb143ca32aa2085c27269",
+      "sha256": "85636c3f28cfd212ecd1db05154778212649ca08f9916f7998c08ba1c46d04d0",
       "duplicateAssetPaths": []
     },
     {
@@ -31335,6 +31343,1386 @@
       "disclosureRequirement": "AI-generated example image for demonstration purposes.",
       "currentDisclosureStatus": "published_with_ai_generated_disclosure",
       "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-90fc1c8bd35c",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791292796/aqprompts/production/admin-prompts/chatgpt-image-oct-6-2026-06-02-40-pm-e81027aae4f0.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791292796/aqprompts/production/admin-prompts/chatgpt-image-oct-6-2026-06-02-40-pm-e81027aae4f0.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/layered-triple-portrait-poster-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "C. Owner-declared AI demonstration assets",
+      "assetType": "ai_generated",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "no",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "not_applicable_or_unknown",
+      "referenceImagePermission": "not_applicable",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-generated example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_generated_disclosure",
+      "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-f85b947f5dc7",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791292975/aqprompts/production/admin-prompts/black-studio-fashion-portrait-golden-rim-light-ai-prompt-9e5743aee36f.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791292975/aqprompts/production/admin-prompts/black-studio-fashion-portrait-golden-rim-light-ai-prompt-9e5743aee36f.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/black-studio-fashion-portrait-with-golden-rim-light-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "C. Owner-declared AI demonstration assets",
+      "assetType": "ai_generated",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "no",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "not_applicable_or_unknown",
+      "referenceImagePermission": "not_applicable",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-generated example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_generated_disclosure",
+      "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-ac5c8df9a243",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791293322/aqprompts/production/admin-prompts/mustard-three-piece-suit-luxury-showroom-portrait-ai-prompt-ce0f17fe9895.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791293322/aqprompts/production/admin-prompts/mustard-three-piece-suit-luxury-showroom-portrait-ai-prompt-ce0f17fe9895.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/mustard-three-piece-suit-luxury-showroom-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-9690190e14d0",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791293509/aqprompts/production/admin-prompts/sage-green-double-exposure-watercolor-portrait-poster-ai-prompt-01c457d92659.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791293509/aqprompts/production/admin-prompts/sage-green-double-exposure-watercolor-portrait-poster-ai-prompt-01c457d92659.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/sage-green-double-exposure-watercolor-portrait-poster-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "C. Owner-declared AI demonstration assets",
+      "assetType": "ai_generated",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "no",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "not_applicable_or_unknown",
+      "referenceImagePermission": "not_applicable",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-generated example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_generated_disclosure",
+      "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-0942a8352411",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791309023/aqprompts/production/admin-prompts/smiling-suit-and-neon-rival-1-8e424e9f64ef.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791309023/aqprompts/production/admin-prompts/smiling-suit-and-neon-rival-1-8e424e9f64ef.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/neon-blue-anime-outline-man-in-tan-suit-studio-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "C. Owner-declared AI demonstration assets",
+      "assetType": "ai_generated",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "no",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "not_applicable_or_unknown",
+      "referenceImagePermission": "not_applicable",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-generated example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_generated_disclosure",
+      "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-42843b7be67f",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485615/aqprompts/production/admin-prompts/sunny-anime-couple-selfie-6da6b241701f.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485615/aqprompts/production/admin-prompts/sunny-anime-couple-selfie-6da6b241701f.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/anime-couple-selfie-ghibli-webtoon-style-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-ecb3eddef94f",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485695/aqprompts/production/admin-prompts/king-and-queen-strolling-together-ad0ffbe39f92.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485695/aqprompts/production/admin-prompts/king-and-queen-strolling-together-ad0ffbe39f92.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/maroon-and-white-anime-couple-poster-king-queen-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-7b32be3591cd",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485777/aqprompts/production/admin-prompts/dreamy-double-exposure-romance-2905c7cf70cf.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791485777/aqprompts/production/admin-prompts/dreamy-double-exposure-romance-2905c7cf70cf.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/romantic-double-exposure-couple-portrait-ash-particles-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-633c4fa21b01",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791488094/aqprompts/production/admin-prompts/selective-color-pencil-sketch-portrait-yellow-cap-and-red-lips-ai-prompt-e459b3a09a10.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791488094/aqprompts/production/admin-prompts/selective-color-pencil-sketch-portrait-yellow-cap-and-red-lips-ai-prompt-e459b3a09a10.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/selective-color-pencil-sketch-portrait-yellow-cap-and-red-lips-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-7ae60bd6495b",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791488158/aqprompts/production/admin-prompts/chatgpt-image-oct-9-2026-12-19-28-am-0357adf5dcd9.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791488158/aqprompts/production/admin-prompts/chatgpt-image-oct-9-2026-12-19-28-am-0357adf5dcd9.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/peekaboo-portrait-behind-dark-wall-with-backlight-halo-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-56f0ca44698d",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565558/aqprompts/production/admin-prompts/desert-highway-sports-car-portrait-043807ccc17b.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565558/aqprompts/production/admin-prompts/desert-highway-sports-car-portrait-043807ccc17b.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/red-sports-car-desert-highway-lifestyle-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-feb2a5150b7c",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565635/aqprompts/production/admin-prompts/neon-blue-bedroom-portrait-f614d9704b2d.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565635/aqprompts/production/admin-prompts/neon-blue-bedroom-portrait-f614d9704b2d.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/blue-neon-ring-aesthetic-portrait-royal-blue-kurta-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-b09e9e562a6f",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565769/aqprompts/production/admin-prompts/cinematic-vip-arrival-at-dusk-eccb53581d43.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565769/aqprompts/production/admin-prompts/cinematic-vip-arrival-at-dusk-eccb53581d43.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/luxury-man-stepping-out-of-black-sedan-cinematic-dusk-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-52355001dae3",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565854/aqprompts/production/admin-prompts/luxury-ferrari-city-portrait-d3e3a05bf0e3.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565854/aqprompts/production/admin-prompts/luxury-ferrari-city-portrait-d3e3a05bf0e3.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/white-ferrari-style-convertible-luxury-man-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-4f264e472fc9",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565984/aqprompts/production/admin-prompts/luxury-driver-portrait-eb357fd741b0.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791565984/aqprompts/production/admin-prompts/luxury-driver-portrait-eb357fd741b0.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/man-in-black-luxury-car-window-portrait-aviator-sunglasses-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-f5e1226a9b85",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652502/aqprompts/production/admin-prompts/pulled-into-the-sketch-6ca98ad4f6fe.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652502/aqprompts/production/admin-prompts/pulled-into-the-sketch-6ca98ad4f6fe.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/real-woman-pulled-by-pencil-sketch-double-mixed-media-photo-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-28951e652081",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652604/aqprompts/production/admin-prompts/real-girl-joyful-sketch-53c48ad0901c.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652604/aqprompts/production/admin-prompts/real-girl-joyful-sketch-53c48ad0901c.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/motivational-mixed-media-photo-real-woman-and-joyful-sketch-double-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-d43a1e43cc5c",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652728/aqprompts/production/admin-prompts/motivational-sticker-sheet-collage-e844c4a9c0fe.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652728/aqprompts/production/admin-prompts/motivational-sticker-sheet-collage-e844c4a9c0fe.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/sticker-pack-sheet-9-cute-woman-stickers-with-hand-lettered-text-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-42f18a853544",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652812/aqprompts/production/admin-prompts/golden-hour-double-exposure-portrait-7f5a1e0f447b.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652812/aqprompts/production/admin-prompts/golden-hour-double-exposure-portrait-7f5a1e0f447b.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/golden-smoke-double-exposure-portrait-poster-with-aviator-profile-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-7d5e13180d25",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652906/aqprompts/production/admin-prompts/cinematic-blue-rimmed-knit-portrait-7b35ecc26e7e.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791652906/aqprompts/production/admin-prompts/cinematic-blue-rimmed-knit-portrait-7b35ecc26e7e.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/electric-blue-rim-light-studio-glamour-portrait-red-lips-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-d40f0e4bbc02",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653010/aqprompts/production/admin-prompts/golden-butterfly-dreamscape-392a6cb171ff.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653010/aqprompts/production/admin-prompts/golden-butterfly-dreamscape-392a6cb171ff.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/glowing-golden-butterfly-on-finger-magical-cinematic-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-7c2d9dac2e34",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653098/aqprompts/production/admin-prompts/playful-sketch-selfie-by-sunlight-b88149875cf3.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653098/aqprompts/production/admin-prompts/playful-sketch-selfie-by-sunlight-b88149875cf3.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/mint-green-kurti-mixed-media-photo-with-playful-sketch-double-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-de8d83ccb33a",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653194/aqprompts/production/admin-prompts/real-girl-meets-neon-alter-ego-37f5f3380ac7.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791653194/aqprompts/production/admin-prompts/real-girl-meets-neon-alter-ego-37f5f3380ac7.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/real-vs-hot-pink-neon-double-sulking-outline-poster-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-b20e4d486663",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791735967/aqprompts/production/admin-prompts/dreamy-purple-umbrella-night-portrait-ea456f78af56.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791735967/aqprompts/production/admin-prompts/dreamy-purple-umbrella-night-portrait-ea456f78af56.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/glowing-purple-umbrella-night-portrait-fairy-lights-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-66e7135a0f64",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736047/aqprompts/production/admin-prompts/edgy-red-accented-streetwear-portrait-3e7e2a658555.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736047/aqprompts/production/admin-prompts/edgy-red-accented-streetwear-portrait-3e7e2a658555.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/black-hoodie-red-graphic-studio-fashion-portrait-low-key-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-3b25c62d9656",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736134/aqprompts/production/admin-prompts/neon-blue-cyber-portrait-97763be21efe.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736134/aqprompts/production/admin-prompts/neon-blue-cyber-portrait-97763be21efe.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/electric-blue-rim-light-black-t-shirt-grunge-graphic-studio-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-6be5bcce6312",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736210/aqprompts/production/admin-prompts/moody-turtleneck-portrait-f504eb66717a.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736210/aqprompts/production/admin-prompts/moody-turtleneck-portrait-f504eb66717a.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/low-key-black-turtleneck-fine-art-portrait-introspective-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-5c5427daecd3",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736316/aqprompts/production/admin-prompts/dreamy-city-lights-double-exposure-70193371c387.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736316/aqprompts/production/admin-prompts/dreamy-city-lights-double-exposure-70193371c387.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/surreal-double-exposure-portrait-giant-face-in-dusk-sky-city-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "C. Owner-declared AI demonstration assets",
+      "assetType": "ai_generated",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "no",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "not_applicable_or_unknown",
+      "referenceImagePermission": "not_applicable",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-generated example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_generated_disclosure",
+      "riskLevel": "Low",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-f27c5959cb1f",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736412/aqprompts/production/admin-prompts/heart-shaped-clouds-and-blue-ribbons-f4691b5c0644.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736412/aqprompts/production/admin-prompts/heart-shaped-clouds-and-blue-ribbons-f4691b5c0644.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/heart-cloud-sky-portrait-powder-blue-sweater-dreamy-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
+      "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
+      "evidenceFiles": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedBy": "AQPrompts Phase 4 automated review",
+      "notes": "Classification relies on the current project-level owner declaration, not missing embedded metadata.",
+      "evidenceFileLocation": [
+        "content/provenance/OWNER_MEDIA_DECLARATION.json"
+      ],
+      "reviewedAt": "2026-07-26",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "format": "webp",
+      "sha256": "remote_asset_hash_not_retained",
+      "duplicateAssetPaths": []
+    },
+    {
+      "assetId": "asset-0371c4bda940",
+      "path": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736504/aqprompts/production/admin-prompts/edgy-red-lit-fashion-portrait-c3f4b9f6acdd.webp",
+      "publicUrl": "https://res.cloudinary.com/ul7t2pqw/image/upload/v1791736504/aqprompts/production/admin-prompts/edgy-red-lit-fashion-portrait-c3f4b9f6acdd.webp",
+      "pagesUsing": [
+        "/tools/ai-image-prompts/p/crimson-red-rim-light-black-t-shirt-grunge-graphic-studio-portrait-ai-prompt"
+      ],
+      "sourceFiles": [
+        "public/data/prompts-index.json"
+      ],
+      "assetCategory": "D. Owner-declared AI demonstration assets",
+      "assetType": "ai_edited",
+      "sourceType": "owner_declared_ai_media",
+      "humanSubject": "yes",
+      "referencePhotoUsed": "yes",
+      "depictedPersonIdentifiable": "unknown",
+      "creator": "AQPrompts website owner",
+      "creationTool": "unknown",
+      "modelVersion": "unknown",
+      "createdAt": "unknown",
+      "promptRecord": "not retained individually",
+      "rightsStatus": "owner_confirmed_source_declaration",
+      "licence": "owner declaration; individual generation record not retained",
+      "subjectConsent": "owner-confirmed where owner-provided or permitted reference applies",
+      "referenceImagePermission": "owner-confirmed",
+      "commercialUseStatus": "owner_confirmed_for_site_display",
+      "disclosureRequirement": "AI-edited example image for demonstration purposes.",
+      "currentDisclosureStatus": "published_with_ai_edited_disclosure",
+      "riskLevel": "Medium",
       "requiredAction": "Retain the owner declaration and public AI disclosure; add the individual tool/model/prompt/date record if it becomes available.",
       "evidenceFiles": [
         "content/provenance/OWNER_MEDIA_DECLARATION.json"

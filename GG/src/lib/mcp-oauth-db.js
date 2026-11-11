@@ -15,6 +15,20 @@ function validAuthorization(authentication) {
     && authentication.clientId.length > 0;
 }
 
+// Transaction note (Neon HTTP driver): the MCP write paths call
+// pool.connect() and issue BEGIN/COMMIT/ROLLBACK, but on the HTTP driver
+// those are no-ops — every statement is its own autocommit statement and
+// SELECT ... FOR SHARE / FOR UPDATE executes without holding a lock. So the
+// `lock*` helpers below are best-effort pre-checks, not real locks, and the
+// sequences cannot be converted to pool.runTransaction() (they branch on
+// intermediate results and on RETURNING ids). Correctness instead relies on
+// the write statements themselves: every publish/update UPDATE embeds the
+// authorization, ownership/draft-access, and status = 'draft' checks in its
+// WHERE clause, so each write is a single atomic conditional statement —
+// concurrent publishes/updates resolve to at most one winner and the loser
+// gets a not-found/not-editable error. A mid-sequence failure can leave a
+// derived field (e.g. prompts.should_noindex) stale; it is recomputed on
+// the next edit/publish. Do not "fix" this by assuming transactions work.
 export async function lockMcpOAuthAuthorization(client, authentication) {
   if (!validAuthorization(authentication)) throw new McpAuthorizationError();
 
@@ -437,9 +451,6 @@ export async function grantMcpOAuthAuthorization(
         granted_by = EXCLUDED.granted_by,
         granted_at = NOW(),
         revoked_at = NULL,
-        can_publish = FALSE,
-        can_upload_images = FALSE,
-        can_publish_blog = FALSE,
         permissions_updated_by = EXCLUDED.granted_by,
         permissions_updated_at = NOW()
       RETURNING subject, client_id AS "clientId",

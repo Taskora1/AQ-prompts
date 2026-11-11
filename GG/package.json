@@ -46,6 +46,7 @@
         "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
         "start": "next start",
         "sync:content": "node scripts/build-content.mjs",
+        "test": "node --test tests/mcp-*.test.js",
         "test:environment": "node scripts/verify-environment-modes.mjs",
         "test:google-cmp": "node scripts/test-google-cmp-consent.mjs",
         "test:google-cmp:runtime": "node scripts/verify-google-cmp-runtime.mjs",

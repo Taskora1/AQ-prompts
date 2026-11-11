@@ -99,6 +99,44 @@ const publicFeedHeaders = [
   },
 ];
 
+// Edge cache for public HTML pages only — lets Cloudflare's CDN serve a cached
+// copy without invoking the Worker at all (0 CPU on a cache hit). Deliberately
+// NOT applied to /admin, /api, /account or any user-specific route.
+// s-maxage=3600 (1h at the edge) + stale-while-revalidate=86400 (serve stale
+// for up to 24h while the Worker revalidates in the background).
+const publicPageCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, s-maxage=3600, stale-while-revalidate=86400',
+  },
+];
+
+// Public page routes that are the same for every visitor (no per-user content).
+const publicPageCacheSources = [
+  '/',
+ // homepage
+  '/tools/ai-image-prompts/:path*', // library, categories, prompt detail
+  '/blog/:path*', // blog listing + post detail
+  '/about',
+  '/categories',
+  '/author/:path*',
+  '/feedback',
+  '/pricing',
+  '/vip-creator-club',
+  '/promptshe-trial',
+  '/secret-prompts',
+  '/welcome',
+  '/privacy',
+  '/terms',
+  '/cookie-policy',
+  '/refund-policy',
+  '/disclaimer',
+  '/ai-policy',
+  '/editorial-policy',
+  '/how-we-review-prompts',
+  '/contact',
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -235,6 +273,11 @@ const nextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      // Public HTML pages: edge-cache so repeat requests skip the Worker.
+      ...publicPageCacheSources.map((source) => ({
+        source,
+        headers: publicPageCacheHeaders,
+      })),
       {
         source: '/images/:path*',
         headers: immutableAssetHeaders,

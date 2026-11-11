@@ -5,6 +5,7 @@ import { after, before, test } from 'node:test';
 import { GET as getAuthorizationServerMetadata } from '../app/.well-known/oauth-authorization-server/route.js';
 import { GET as getProtectedResourceMetadata } from '../app/.well-known/oauth-protected-resource/api/mcp/route.js';
 import { POST as registerClient } from '../app/oauth/register/route.js';
+import { POST as revokeToken } from '../app/oauth/revoke/route.js';
 import { POST as exchangeToken } from '../app/oauth/token/route.js';
 import { authenticateMcpRequest } from '../src/lib/mcp-auth.js';
 import { getDatabaseUrl, isBuildPhase } from '../src/lib/db.js';
@@ -34,6 +35,10 @@ const previousEnvironment = {};
 const brokerTokens = new Map();
 const brokerRefreshTokens = new Map();
 const registeredClients = new Map();
+// Subjects whose mcp_oauth_authorizations row is revoked. The mock rotation
+// CTE honours this the way the real SQL honours the NOT EXISTS check on
+// revoked authorizations.
+const revokedSubjects = new Set();
 const databaseCalls = [];
 let previousFetch;
 let previousPool;
@@ -110,7 +115,6 @@ before(() => {
     'AQ_MCP_RESOURCE_URI',
     'AQ_MCP_OAUTH_PROVIDER',
     'AQ_MCP_OAUTH_DISCOVERY_URL',
-    'VERCEL_ENV',
     'DATABASE_URL',
   ];
   for (const name of names) previousEnvironment[name] = process.env[name];
@@ -126,7 +130,6 @@ before(() => {
   process.env.AQ_MCP_RESOURCE_URI = RESOURCE;
   process.env.AQ_MCP_OAUTH_PROVIDER = 'descope';
   process.env.AQ_MCP_OAUTH_DISCOVERY_URL = DISCOVERY_URL;
-  process.env.VERCEL_ENV = 'preview';
   process.env.DATABASE_URL = 'postgres://localhost/mcp_oauth_broker_test';
   registeredClients.clear();
   brokerTokens.clear();
@@ -192,7 +195,8 @@ before(() => {
           && consumed.clientId === values[1]
           && consumed.resource === values[5]
           && client?.redirectUri === values[2]
-          && client.refreshEnabled;
+          && client.refreshEnabled
+          && !revokedSubjects.has(consumed.subject);
         if (!usable) return { rowCount: 0, rows: [] };
         brokerRefreshTokens.delete(values[0]);
         brokerTokens.set(values[3], {
@@ -233,6 +237,34 @@ before(() => {
           expiresAt: Date.now() + values[4] * 1000,
         });
         return { rowCount: 1, rows: [] };
+      }
+      // RFC 7009 revocation: DELETE by token hash (single token) or by
+      // subject + client (admin revoke of a whole subject).
+      if (/DELETE FROM mcp_oauth_broker_tokens WHERE token_hash = \$1/.test(sql)) {
+        return { rowCount: brokerTokens.delete(values[0]) ? 1 : 0, rows: [] };
+      }
+      if (/DELETE FROM mcp_oauth_broker_refresh_tokens WHERE token_hash = \$1/.test(sql)) {
+        return { rowCount: brokerRefreshTokens.delete(values[0]) ? 1 : 0, rows: [] };
+      }
+      if (/DELETE FROM mcp_oauth_broker_tokens WHERE subject = \$1 AND client_id = \$2/.test(sql)) {
+        let count = 0;
+        for (const [hash, token] of brokerTokens) {
+          if (token.subject === values[0] && token.clientId === values[1]) {
+            brokerTokens.delete(hash);
+            count += 1;
+          }
+        }
+        return { rowCount: count, rows: [] };
+      }
+      if (/DELETE FROM mcp_oauth_broker_refresh_tokens WHERE subject = \$1 AND client_id = \$2/.test(sql)) {
+        let count = 0;
+        for (const [hash, token] of brokerRefreshTokens) {
+          if (token.subject === values[0] && token.clientId === values[1]) {
+            brokerRefreshTokens.delete(hash);
+            count += 1;
+          }
+        }
+        return { rowCount: count, rows: [] };
       }
       if (/FROM mcp_oauth_broker_tokens/.test(sql)) {
         const token = brokerTokens.get(values[0]);
@@ -299,6 +331,9 @@ test('AQ authorization-server metadata advertises the first-party public-client 
     issuer: 'https://www.aqprompts.com',
     authorization_endpoint: 'https://www.aqprompts.com/authorize',
     token_endpoint: 'https://www.aqprompts.com/oauth/token',
+    revocation_endpoint: 'https://www.aqprompts.com/oauth/revoke',
+    jwks_uri: JWKS_URL,
+    scopes_supported: ['openid', 'profile', 'email'],
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
@@ -565,4 +600,112 @@ test('provider and token-store failures do not return credentials or success-sha
   databaseUnavailable = false;
   assert.equal(lookupFailure.ok, false);
   assert.equal(lookupFailure.status, 503);
+});
+
+test('refresh rotation stops after the subject is revoked and resumes after un-revoking', async () => {
+  const initial = await exchangeToken(authorizationCodeRequest());
+  assert.equal(initial.status, 200, await initial.clone().text());
+  const initialTokens = await initial.json();
+  const initialRefreshHash = crypto.createHash('sha256')
+    .update(initialTokens.refresh_token)
+    .digest('hex');
+  assert.equal(brokerRefreshTokens.has(initialRefreshHash), true);
+
+  // Simulate a Super Admin revoking the subject's authorization: the
+  // rotation CTE's NOT EXISTS check on revoked authorizations must block
+  // the refresh without consuming the token.
+  revokedSubjects.add('isolated-oauth-subject');
+  try {
+    const blocked = await exchangeToken(tokenRequest({
+      grant_type: 'refresh_token',
+      client_id: CLAUDE_CLIENT_ID,
+      refresh_token: initialTokens.refresh_token,
+      resource: RESOURCE,
+    }));
+    assert.equal(blocked.status, 400);
+    assert.equal(brokerRefreshTokens.has(initialRefreshHash), true);
+  } finally {
+    revokedSubjects.delete('isolated-oauth-subject');
+  }
+
+  const resumed = await exchangeToken(tokenRequest({
+    grant_type: 'refresh_token',
+    client_id: CLAUDE_CLIENT_ID,
+    refresh_token: initialTokens.refresh_token,
+    resource: RESOURCE,
+  }));
+  assert.equal(resumed.status, 200, await resumed.clone().text());
+  assert.equal(brokerRefreshTokens.has(initialRefreshHash), false);
+});
+
+test('revoke endpoint deletes broker tokens and always returns 200 for unknown tokens', async () => {
+  const initial = await exchangeToken(authorizationCodeRequest());
+  assert.equal(initial.status, 200, await initial.clone().text());
+  const initialTokens = await initial.json();
+  const accessHash = crypto.createHash('sha256')
+    .update(initialTokens.access_token)
+    .digest('hex');
+  const refreshHash = crypto.createHash('sha256')
+    .update(initialTokens.refresh_token)
+    .digest('hex');
+  assert.equal(brokerTokens.has(accessHash), true);
+  assert.equal(brokerRefreshTokens.has(refreshHash), true);
+
+  const revokeRequest = (token, hint) => new Request('https://www.aqprompts.com/oauth/revoke', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ token, token_type_hint: hint }),
+  });
+
+  const revokedAccess = await revokeToken(revokeRequest(initialTokens.access_token, 'access_token'));
+  assert.equal(revokedAccess.status, 200);
+  assert.equal(brokerTokens.has(accessHash), false);
+  // A different token (the refresh token) survives an access-token revoke.
+  assert.equal(brokerRefreshTokens.has(refreshHash), true);
+
+  const revokedRefresh = await revokeToken(revokeRequest(initialTokens.refresh_token, 'refresh_token'));
+  assert.equal(revokedRefresh.status, 200);
+  assert.equal(brokerRefreshTokens.has(refreshHash), false);
+
+  // RFC 7009: an unknown token is still a successful revocation (200),
+  // so the response never leaks whether a token existed.
+  const unknown = await revokeToken(revokeRequest('a'.repeat(64), 'access_token'));
+  assert.equal(unknown.status, 200);
+
+  // Malformed requests are 400.
+  const missing = await revokeToken(new Request('https://www.aqprompts.com/oauth/revoke', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({}),
+  }));
+  assert.equal(missing.status, 400);
+});
+
+test('token exchange accepts an omitted resource for both grant types', async () => {
+  // RFC 8707 makes `resource` optional: omitting it defaults to the
+  // canonical resource instead of 400ing.
+  const codeForm = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: CLAUDE_CLIENT_ID,
+    code: 'synthetic-authorization-code-123456789',
+    redirect_uri: REDIRECT_URI,
+    code_verifier: 'A'.repeat(43),
+  });
+  const codeResponse = await exchangeToken(new Request('https://www.aqprompts.com/oauth/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: codeForm,
+  }));
+  assert.equal(codeResponse.status, 200, await codeResponse.clone().text());
+  const codeTokens = await codeResponse.json();
+  assert.equal(codeTokens.scope, 'openid profile email');
+
+  const refreshResponse = await exchangeToken(tokenRequest({
+    grant_type: 'refresh_token',
+    client_id: CLAUDE_CLIENT_ID,
+    refresh_token: codeTokens.refresh_token,
+  }));
+  assert.equal(refreshResponse.status, 200, await refreshResponse.clone().text());
+  const refreshTokens = await refreshResponse.json();
+  assert.equal(refreshTokens.scope, 'openid profile email');
 });

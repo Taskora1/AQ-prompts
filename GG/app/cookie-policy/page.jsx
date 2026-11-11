@@ -10,7 +10,7 @@ import { buildStaticPageMetadata, buildStaticPageSchema } from '@/lib/metadata';
 export const dynamic = 'force-static';
 export const revalidate = false;
 
-const LAST_UPDATED = 'October 5, 2026';
+const LAST_UPDATED = 'November 11, 2026';
 
 export function generateMetadata() {
   return buildStaticPageMetadata('cookiePolicy');
@@ -82,9 +82,8 @@ export default function CookiePolicyPage() {
             ))}
 
             <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111118] sm:p-8">
-              <h2 className="text-2xl font-black">Payment and account services</h2>
+              <h2 className="text-2xl font-black">Account services</h2>
               <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                <p>Paddle may use cookies or similar technologies when its price-preview and checkout services are loaded on membership pages. Paddle supports the payment service requested by the user and operates under its own privacy and cookie practices.</p>
                 <p>AQPrompts uses a signed, HTTP-only session cookie after successful passwordless sign-in. This cookie is necessary to keep the account session secure.</p>
               </div>
             </article>

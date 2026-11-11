@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 import { getCurrentAdminUser } from '@/lib/admin-session';
-import { ImageWatermarkError, watermarkImage } from '@/lib/image-watermark';
 
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
@@ -15,6 +14,14 @@ const RASTER_FORMATS = {
 };
 const ALLOWED_RASTER_FORMATS = 'jpg,png,webp';
 const WATERMARK_CONTEXT = 'aqprompts_watermark=v1';
+// Cloudinary overlay watermark — Variant A (logo + "AQPROMPTS" + "www.aqprompts.com").
+// The badge is a single transparent PNG uploaded once to Cloudinary as
+// `aqprompts/watermark-badge` (source: ~/workspace/your_files/aqprompts-watermark/).
+// No sharp: native modules cannot run on Cloudflare Workers, so Cloudinary
+// applies the watermark at upload time. Badge width is 24% of the image width
+// (fl_relative), bottom-right, 20 px margin, 92% opacity.
+const WATERMARK_TRANSFORMATION =
+  'l_aqprompts:watermark-badge,c_scale,fl_relative,w_0.24,o_92/fl_layer_apply,g_south_east,x_20,y_20';
 
 export const runtime = 'nodejs';
 
@@ -101,30 +108,13 @@ export async function POST(request) {
     let watermarked = false;
 
     if (!isSvg) {
-      const input = Buffer.from(await file.arrayBuffer());
-      try {
-        const processed = await watermarkImage(input, RASTER_FORMATS[file.type]);
-        uploadFile = new Blob([processed.buffer], { type: processed.mimeType });
-        uploadExtension = processed.extension;
-        width = processed.width;
-        height = processed.height;
-        watermarked = processed.watermarked;
-      } catch (error) {
-        // Watermarking needs sharp (a native module), which is not
-        // available on Cloudflare Workers. On such a runtime the
-        // watermark step fails with a 503; upload the original image
-        // instead of failing the upload. Any other watermark error
-        // (invalid image, too large) is still rejected below.
-        if (error instanceof ImageWatermarkError && error.status === 503) {
-          console.warn('Image watermarking unavailable; uploading without a watermark:', error.message);
-          uploadFile = file;
-          const format = RASTER_FORMATS[file.type];
-          uploadExtension = format === 'jpeg' ? 'jpg' : format;
-          watermarked = false;
-        } else {
-          throw error;
-        }
-      }
+      // Watermark is applied by Cloudinary at upload time (overlay of the
+      // `aqprompts/watermark-badge` asset, see WATERMARK_TRANSFORMATION).
+      // No local image processing, so this works on Cloudflare Workers where
+      // sharp cannot run. Width/height come back from Cloudinary's response.
+      const format = RASTER_FORMATS[file.type];
+      uploadExtension = format === 'jpeg' ? 'jpg' : format;
+      watermarked = true;
     }
 
     const publicId = safePublicId(file.name);
@@ -138,7 +128,11 @@ export async function POST(request) {
       public_id: publicId,
       timestamp,
       ...(watermarked
-        ? { allowed_formats: ALLOWED_RASTER_FORMATS, context: WATERMARK_CONTEXT }
+        ? {
+            allowed_formats: ALLOWED_RASTER_FORMATS,
+            context: WATERMARK_CONTEXT,
+            transformation: WATERMARK_TRANSFORMATION,
+          }
         : {}),
     };
     const signature = buildSignature(signedParams, apiSecret);
@@ -153,6 +147,7 @@ export async function POST(request) {
     if (watermarked) {
       cloudinaryFormData.set('allowed_formats', ALLOWED_RASTER_FORMATS);
       cloudinaryFormData.set('context', WATERMARK_CONTEXT);
+      cloudinaryFormData.set('transformation', WATERMARK_TRANSFORMATION);
     }
 
     const resourceType = isSvg ? 'raw' : 'image';
@@ -212,9 +207,6 @@ export async function POST(request) {
       watermarked,
     });
   } catch (error) {
-    if (error instanceof ImageWatermarkError) {
-      return jsonError(error.message, error.status);
-    }
     console.error('Admin image upload failed:', error);
     return jsonError('The image upload could not be completed.', 500);
   }

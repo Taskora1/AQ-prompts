@@ -169,6 +169,25 @@ function createClient() {
 }
 
 export function getPgPool() {
+  // Test-injection hook, restored from the pre-migration pg driver: tests
+  // install a mock pool on globalThis.__dbPgPool (with __dbConnectionString
+  // set from getDatabaseUrl()) and getPgPool() returns it instead of the
+  // real HTTP-driver pool. The migration rewrite dropped this hook, which
+  // broke every db-mocked MCP test (the pool tried to reach Neon with a
+  // localhost DATABASE_URL). Production never sets __dbPgPool, so this
+  // cannot change live behavior. The old hook also compared __dbPoolMax,
+  // but the migration changed the default pool max (5 -> 10) while the
+  // test mocks still record 5, and a mock holds no connections, so only
+  // the connection string is compared. The migration guard is skipped
+  // here because an injected mock opens no real database connection.
+  const injected = globalThis.__dbPgPool;
+  if (
+    injected
+    && !injected.ended
+    && injected.__dbConnectionString === getDatabaseUrl()
+  ) {
+    return injected;
+  }
   if (pool) return pool;
   assertMigrationGuard();
   pool = {

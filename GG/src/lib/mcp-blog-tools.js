@@ -164,6 +164,7 @@ export async function listBlogPosts(input, authentication = null) {
   const page = input.page ?? 1;
   const pageSize = input.pageSize ?? 20;
   const status = input.status ?? 'all';
+  const search = input.search ?? '';
   if (!Number.isSafeInteger(page) || page < 1 || page > MAX_PAGE) {
     throw new McpBlogToolError(`page must be between 1 and ${MAX_PAGE}.`);
   }
@@ -172,6 +173,9 @@ export async function listBlogPosts(input, authentication = null) {
   }
   if (!['all', 'draft', 'published'].includes(status)) {
     throw new McpBlogToolError('status must be all, draft, or published.');
+  }
+  if (typeof search !== 'string' || search.length > 200) {
+    throw new McpBlogToolError('search must be 200 characters or fewer.');
   }
   const client = await getPgPool().connect();
   try {
@@ -212,6 +216,10 @@ export async function listBlogPosts(input, authentication = null) {
     if (status !== 'all') {
       values.push(status);
       conditions.push(`p.status = $${values.length}`);
+    }
+    if (search) {
+      values.push(`%${search}%`);
+      conditions.push(`(p.title ILIKE $${values.length} OR p.content ILIKE $${values.length})`);
     }
     const where = conditions.join(' AND ');
     const count = await client.query(
