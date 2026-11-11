@@ -111,15 +111,22 @@ export async function getAdminUserById(id) {
 
 async function ensureAdminLoginRateLimitSchema(pool) {
   if (!adminLoginRateLimitSchemaPromise) {
-    adminLoginRateLimitSchemaPromise = pool.query(`
-      CREATE TABLE IF NOT EXISTS admin_login_rate_limits (
-        ip_fingerprint TEXT PRIMARY KEY,
-        failed_attempts INTEGER NOT NULL DEFAULT 0,
-        window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS admin_login_rate_limits_window_idx
-        ON admin_login_rate_limits (window_started_at)
-    `).catch((error) => {
+    // The Neon HTTP driver rejects multiple statements in one query
+    // ("cannot insert multiple commands into a prepared statement"), so
+    // the CREATE TABLE and CREATE INDEX run as two separate queries.
+    adminLoginRateLimitSchemaPromise = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_login_rate_limits (
+          ip_fingerprint TEXT PRIMARY KEY,
+          failed_attempts INTEGER NOT NULL DEFAULT 0,
+          window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS admin_login_rate_limits_window_idx
+          ON admin_login_rate_limits (window_started_at)
+      `);
+    })().catch((error) => {
       adminLoginRateLimitSchemaPromise = undefined;
       throw error;
     });
