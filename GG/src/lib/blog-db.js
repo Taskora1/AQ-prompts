@@ -222,7 +222,11 @@ export async function listBlogPostsForAdmin({
     `, filters),
     getPgPool().query(`
       SELECT
-        COUNT(*)::int AS all,
+        -- NB: alias is total_all, not all — ALL is a reserved word in
+        -- SQLite and a bare AS all is a syntax error on the D1 path
+        -- (it broke /admin/blog: the stats query is one of four in
+        -- Promise.all, so one failure fails the whole admin list).
+        COUNT(*)::int AS total_all,
         COUNT(*) FILTER (WHERE status = 'published')::int AS published,
         COUNT(*) FILTER (WHERE status = 'draft')::int AS draft
       FROM blog_posts
@@ -251,7 +255,7 @@ export async function listBlogPostsForAdmin({
     rows: result.rows.map(mapPost),
     total: Number(countResult.rows[0]?.total || 0),
     statusCounts: {
-      all: Number(statsResult.rows[0]?.all || 0),
+      all: Number(statsResult.rows[0]?.total_all || 0),
       published: Number(statsResult.rows[0]?.published || 0),
       draft: Number(statsResult.rows[0]?.draft || 0),
     },
