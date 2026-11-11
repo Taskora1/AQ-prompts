@@ -24,8 +24,19 @@ function mapCategory(row) {
   };
 }
 
-export async function supportsCategoryLibraryType(client = getPgPool()) {
-  const result = await client.query(`
+// The library_type column has existed for months and is not going away
+// at runtime, so the EXISTS probe is cached in module scope: it used to
+// run before the listCategories cache check and on every
+// getCategoryById/createCategory/updateCategory call. The cached value
+// keeps the supportsLibraryType=false code path intact for a schema
+// without the column — callers still branch on the boolean.
+let cachedSupportsCategoryLibraryType;
+
+export async function supportsCategoryLibraryType(client = null) {
+  if (cachedSupportsCategoryLibraryType !== undefined) {
+    return cachedSupportsCategoryLibraryType;
+  }
+  const result = await (client || getPgPool()).query(`
     SELECT EXISTS (
       SELECT 1
       FROM information_schema.columns
@@ -34,7 +45,12 @@ export async function supportsCategoryLibraryType(client = getPgPool()) {
         AND column_name = 'library_type'
     ) AS supported
   `);
-  return result.rows[0]?.supported === true;
+  cachedSupportsCategoryLibraryType = result.rows[0]?.supported === true;
+  return cachedSupportsCategoryLibraryType;
+}
+
+export function clearSupportsCategoryLibraryTypeCache() {
+  cachedSupportsCategoryLibraryType = undefined;
 }
 
 export function validateCategoryInput(input) {
@@ -92,9 +108,10 @@ export async function listCategories({ libraryType = 'photo' } = {}) {
       c.public_route_slug AS "publicRouteSlug",
       c.created_at::text AS "createdAt",
       c.updated_at::text AS "updatedAt",
-      COUNT(pc.prompt_id)::int AS "promptCount"
+      COUNT(p.id)::int AS "promptCount"
     FROM categories c
     LEFT JOIN prompt_categories pc ON pc.category_id = c.id
+    LEFT JOIN prompts p ON p.id = pc.prompt_id AND p.status = 'published'
     ${supportsLibraryType ? 'WHERE c.library_type = $1' : ''}
     GROUP BY c.id
     ORDER BY c.public_route_slug IS NULL, c.name
@@ -122,9 +139,10 @@ export async function getCategoryById(id) {
         c.public_route_slug AS "publicRouteSlug",
         c.created_at::text AS "createdAt",
         c.updated_at::text AS "updatedAt",
-        COUNT(pc.prompt_id)::int AS "promptCount"
+        COUNT(p.id)::int AS "promptCount"
       FROM categories c
       LEFT JOIN prompt_categories pc ON pc.category_id = c.id
+      LEFT JOIN prompts p ON p.id = pc.prompt_id AND p.status = 'published'
       WHERE c.id = $1
       GROUP BY c.id
       LIMIT 1
@@ -182,7 +200,10 @@ export async function updateCategory(id, data) {
   if (!result.rows[0]) return null;
 
   const count = await pool.query(
-    'SELECT COUNT(*)::int AS count FROM prompt_categories WHERE category_id = $1',
+    `SELECT COUNT(p.id)::int AS count
+     FROM prompt_categories pc
+     JOIN prompts p ON p.id = pc.prompt_id AND p.status = 'published'
+     WHERE pc.category_id = $1`,
     [id],
   );
 

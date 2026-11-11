@@ -35,11 +35,15 @@ export function setFavoritePromptIds(ids = []) {
 
 export function toggleFavoritePrompt(promptId) {
   const normalizedId = String(promptId || '').trim();
-  if (!normalizedId) return { favorite: false, ids: getFavoritePromptIds() };
+  if (!normalizedId) return { favorite: false, ids: getFavoritePromptIds(), persisted: false };
 
   const ids = getFavoritePromptIds();
   const favorite = !ids.includes(normalizedId);
   const nextIds = favorite ? [...ids, normalizedId] : ids.filter((id) => id !== normalizedId);
 
-  return { favorite, ids: setFavoritePromptIds(nextIds) };
+  // Without "preferences" consent the ids are NOT written to storage, so
+  // callers must tell the user the save did not stick (see SaveConsentNotice).
+  // The consent gate itself is intentionally not bypassed here.
+  const persisted = hasConsent('preferences');
+  return { favorite, ids: setFavoritePromptIds(nextIds), persisted };
 }

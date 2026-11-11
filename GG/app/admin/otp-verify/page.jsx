@@ -80,7 +80,7 @@ function OtpVerifyForm() {
       const res = await fetch('/admin/otp-verify/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: code }),
+        body: JSON.stringify({ otp: code, email }),
       });
 
       const data = await res.json();
@@ -97,7 +97,7 @@ function OtpVerifyForm() {
     } finally {
       setLoading(false);
     }
-  }, [otp, router]);
+  }, [otp, email, router]);
 
   const handleResend = useCallback(async () => {
     if (cooldown > 0) return;

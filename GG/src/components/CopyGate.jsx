@@ -54,8 +54,10 @@ const FREE_COPY_COOKIE = 'aq_feedback_free_copy';
 
 function hasCompletedFeedbackGate() {
   try {
+    // Either marker proves the user already submitted feedback: clearing
+    // one of them (e.g. wiping cookies or local storage) must not re-gate.
     return window.localStorage.getItem(FEEDBACK_GATE_LOCAL_KEY) === '1'
-      && document.cookie.split('; ').some((cookie) => cookie === `${FEEDBACK_GATE_COOKIE}=1`);
+      || document.cookie.split('; ').some((cookie) => cookie === `${FEEDBACK_GATE_COOKIE}=1`);
   } catch {
     return false;
   }

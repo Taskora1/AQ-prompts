@@ -36,8 +36,8 @@ export default function FloatingWhatsAppChannel() {
     >
       <span
         aria-hidden={!showLabel}
-        className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-500 ${
-          showLabel ? 'max-w-28 opacity-100' : 'max-w-0 opacity-0'
+        className={`shrink-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-500 ${
+          showLabel ? 'max-w-40 opacity-100' : 'max-w-0 opacity-0'
         }`}
       >
         Join WhatsApp

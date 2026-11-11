@@ -20,10 +20,32 @@ import './site-loader.css';
  *  3. In app/layout.tsx, inside <body>, render <SiteLoader /> before {children}.
  */
 export default function SiteLoader() {
-  const [visible, setVisible] = useState(true);
-  const [gone, setGone] = useState(false);
+  // Show the full-screen splash only on the very first load of a browser
+  // session. Client-side navigations (and any remount) skip it entirely.
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return window.sessionStorage.getItem('aq-loader-shown') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  const [gone, setGone] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.sessionStorage.getItem('aq-loader-shown') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
+    // Remember that the splash has shown, so it never appears again this session.
+    try {
+      window.sessionStorage.setItem('aq-loader-shown', '1');
+    } catch {
+      // sessionStorage unavailable — the splash still hides via the timers below.
+    }
     let loaded = document.readyState === 'complete';
     let minDone = false;
     let finished = false;

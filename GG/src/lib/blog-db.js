@@ -15,9 +15,6 @@ import { cache } from 'react';
 
 // ── Cache (similar to prompts-db.js) ───────────────────────────────────
 
-const BLOG_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
-let cachedPublishedPosts = null;
-let cachedPublishedAt = 0;
 const REDIRECTED_BLOG_POST_SLUGS = ['chatgpt-dress-change-prompt-guide-for-women'];
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -108,7 +105,14 @@ function mapPostWriteResult(row, data) {
 
 // ── Schema Setup ────────────────────────────────────────────────────────
 
-const CREATE_TABLE_SQL = `
+// The Neon HTTP driver rejects multiple statements in one query
+// ("cannot insert multiple commands into a prepared statement"), so each
+// DDL statement below runs as its own pool.query() call — same pattern as
+// ensureAdminLoginRateLimitSchema in admin-users-db.js and
+// ensurePasswordResetTable in admin-password-reset-db.js. Previously all
+// five statements were sent in one query, which broke every admin blog
+// page/API call on its first request per Worker isolate.
+const CREATE_BLOG_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS blog_posts (
   id SERIAL PRIMARY KEY,
   slug VARCHAR(255) UNIQUE NOT NULL,
@@ -138,12 +142,23 @@ CREATE TABLE IF NOT EXISTS blog_posts (
   toc JSONB DEFAULT '[]'::jsonb,
   meta JSONB DEFAULT '{}'::jsonb,
   keywords TEXT DEFAULT ''
-);
+)
+`;
 
-CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug);
-CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status);
-CREATE INDEX IF NOT EXISTS idx_blog_posts_publish_date ON blog_posts(publish_date);
-CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts(category);
+const CREATE_BLOG_POSTS_SLUG_INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug)
+`;
+
+const CREATE_BLOG_POSTS_STATUS_INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status)
+`;
+
+const CREATE_BLOG_POSTS_PUBLISH_DATE_INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_blog_posts_publish_date ON blog_posts(publish_date)
+`;
+
+const CREATE_BLOG_POSTS_CATEGORY_INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts(category)
 `;
 
 let blogTableEnsured = false;
@@ -151,7 +166,11 @@ let blogTableEnsured = false;
 export async function ensureBlogTable() {
   if (blogTableEnsured) return;
   const db = getPgPool();
-  await db.query(CREATE_TABLE_SQL);
+  await db.query(CREATE_BLOG_TABLE_SQL);
+  await db.query(CREATE_BLOG_POSTS_SLUG_INDEX_SQL);
+  await db.query(CREATE_BLOG_POSTS_STATUS_INDEX_SQL);
+  await db.query(CREATE_BLOG_POSTS_PUBLISH_DATE_INDEX_SQL);
+  await db.query(CREATE_BLOG_POSTS_CATEGORY_INDEX_SQL);
   blogTableEnsured = true;
 }
 
@@ -247,38 +266,7 @@ export async function listBlogPostsForAdmin({
 }
 
 /**
- * Get published blog posts (for public pages).
- * Cached for performance.
- */
-export async function getPublishedBlogPosts() {
-  const now = Date.now();
-  if (cachedPublishedPosts && now - cachedPublishedAt < BLOG_CACHE_TTL_MS) {
-    return cachedPublishedPosts;
-  }
-
-  const result = await getPgPool().query(`
-    SELECT
-      id, slug, title, excerpt, content, content_html, content_text,
-      featured_image, featured_image_alt, author, author_meta,
-      category, tags, status, featured,
-      publish_date::text AS publish_date,
-      created_at::text AS created_at,
-      updated_at::text AS updated_at,
-      reading_time, seo_title, seo_description, canonical_url,
-      og_image, og_image_alt, faqs, toc, meta, keywords
-    FROM blog_posts
-    WHERE status = 'published'
-    ORDER BY publish_date DESC NULLS LAST, created_at DESC
-  `);
-
-  const posts = result.rows.map(mapPost);
-  cachedPublishedPosts = posts;
-  cachedPublishedAt = now;
-  return posts;
-}
-
-/**
- * Slim version of getPublishedBlogPosts — excludes heavy content columns.
+ * Slim published-posts query — excludes heavy content columns.
  * Use for blog listing pages, homepage, RSS feeds.
  */
 const SLIM_BLOG_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -442,27 +430,6 @@ export async function getPublishedBlogPostsForFeed() {
     publishDate: toISODate(row.publish_date),
     updatedAt: row.updated_at || '',
   }));
-}
-
-/**
- * Get all blog posts (published + draft) — used for sitemap filtering.
- */
-export async function getAllBlogPosts() {
-  const result = await getPgPool().query(`
-    SELECT
-      id, slug, title, excerpt, content, content_html, content_text,
-      featured_image, featured_image_alt, author, author_meta,
-      category, tags, status, featured,
-      publish_date::text AS publish_date,
-      created_at::text AS created_at,
-      updated_at::text AS updated_at,
-      reading_time, seo_title, seo_description, canonical_url,
-      og_image, og_image_alt, faqs, toc, meta, keywords
-    FROM blog_posts
-    ORDER BY publish_date DESC NULLS LAST, created_at DESC
-  `);
-
-  return result.rows.map(mapPost);
 }
 
 /**
@@ -725,8 +692,6 @@ export async function deleteBlogPost(slug) {
 // ── Cache Management ────────────────────────────────────────────────────
 
 export function clearBlogCache() {
-  cachedPublishedPosts = null;
-  cachedPublishedAt = 0;
   cachedSlimPublishedPosts = null;
   cachedSlimPublishedAt = 0;
   cachedHomepageBlogPosts = null;

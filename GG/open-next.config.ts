@@ -1,14 +1,16 @@
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
-import kvIncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/kv-incremental-cache";
+import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/r2-incremental-cache";
 import kvNextTagCache from "@opennextjs/cloudflare/overrides/tag-cache/kv-next-tag-cache";
 
-// Real KV-backed caches (not the default "dummy" cache, which caches nothing).
-// Without these, every ISR/static page re-renders on every request and blows
-// the Workers Free 10 ms CPU limit (Error 1102).
-// KV namespaces (free tier) — bindings are declared in wrangler.jsonc:
-//   NEXT_INC_CACHE_KV  -> aqprompts-inc-cache
-//   NEXT_TAG_CACHE_KV  -> aqprompts-tag-cache
+// Incremental cache is R2-backed (not KV): KV free tier allows only 1,000
+// writes/day and each deploy re-inserts the whole cache (~676 writes), which
+// blocked deploys on 2026-11-11. R2 free tier has no daily write cap
+// (1M Class A writes/month) so deploys are no longer blocked.
+// Tag cache stays KV (tiny usage, no daily-cap problem).
+// R2 bucket binding is declared in wrangler.jsonc:
+//   NEXT_INC_CACHE_R2_BUCKET -> aqprompts-inc-cache
+// KV namespaces below are kept so a rollback is a one-line change here.
 export default defineCloudflareConfig({
-  incrementalCache: kvIncrementalCache,
+  incrementalCache: r2IncrementalCache,
   tagCache: kvNextTagCache,
 });

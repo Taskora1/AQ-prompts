@@ -136,36 +136,42 @@ test('site review profile migration rolls back if either new column is missing',
 test('review IP fingerprints are keyed and submission writes pending reviews under an hourly lock', async () => {
   const queryCalls = [];
   let attemptCount = 0;
+  const handleQuery = async (sql, values = []) => {
+    const query = String(sql);
+    queryCalls.push({ query, values });
+    if (query.includes('INSERT INTO public.site_reviews')) {
+      // The insert is conditional: the rate-limit check inside it rejects
+      // the write once the hourly limit is reached, so no row is returned.
+      if (attemptCount >= 5) return { rows: [] };
+      return {
+        rows: [{
+          id: '4',
+          name: 'Sam',
+          social_url: 'https://social.example/sam',
+          rating: 5,
+          review_text: 'Useful prompt library',
+          status: 'pending',
+          source: 'copy-gate',
+          prompt_id: 17,
+          created_at: '2026-10-23T10:00:00.000Z',
+          user_agent: 'test-agent',
+        }],
+      };
+    }
+    return { rows: [] };
+  };
   globalThis.__dbPgPool = {
     ended: false,
     __dbConnectionString: getDatabaseUrl(),
     __dbPoolMax: isBuildPhase() ? 1 : 5,
     async end() {},
+    async query(sql, values = []) {
+      return handleQuery(sql, values);
+    },
     async connect() {
       return {
         async query(sql, values = []) {
-          const query = String(sql);
-          queryCalls.push({ query, values });
-          if (query.includes('SELECT COUNT(*)::int AS attempts')) {
-            return { rows: [{ attempts: attemptCount }] };
-          }
-          if (query.includes('INSERT INTO public.site_reviews')) {
-            return {
-              rows: [{
-                id: '4',
-                name: 'Sam',
-                social_url: 'https://social.example/sam',
-                rating: 5,
-                review_text: 'Useful prompt library',
-                status: 'pending',
-                source: 'copy-gate',
-                prompt_id: 17,
-                created_at: '2026-10-23T10:00:00.000Z',
-                user_agent: 'test-agent',
-              }],
-            };
-          }
-          return { rows: [] };
+          return handleQuery(sql, values);
         },
         release() {},
       };
@@ -201,7 +207,9 @@ test('review IP fingerprints are keyed and submission writes pending reviews und
       createdAt: '2026-10-23T10:00:00.000Z',
     },
   });
-  assert.ok(queryCalls.some(({ query, values }) => query.includes('pg_advisory_xact_lock') && values[0] === `site-review:${fingerprint}`));
+  // The duplicate and rate-limit checks live inside the single atomic
+  // INSERT ... SELECT, not in a transaction with advisory locks.
+  assert.ok(queryCalls.some(({ query }) => query.includes('INSERT INTO public.site_reviews') && query.includes('NOT EXISTS')));
   assert.ok(queryCalls.some(({ query }) => query.includes("INTERVAL '1 hours'")));
   assert.ok(queryCalls.some(({ query }) => query.includes("'pending'")));
   assert.ok(queryCalls.some(({ query, values }) => query.includes('social_url') && values.includes('https://social.example/sam')));
@@ -213,7 +221,9 @@ test('review IP fingerprints are keyed and submission writes pending reviews und
     ipHash: fingerprint,
   });
   assert.deepEqual(limited, { limited: true, review: null });
-  assert.equal(queryCalls.filter(({ query }) => query.includes('INSERT INTO public.site_reviews')).length, 1);
+  // The limited call still issues the conditional INSERT (it inserts zero
+  // rows), so two INSERT statements were sent in total.
+  assert.equal(queryCalls.filter(({ query }) => query.includes('INSERT INTO public.site_reviews')).length, 2);
 });
 
 test('social profile URLs are canonicalized and active profiles cannot submit a second review', async () => {
@@ -223,20 +233,31 @@ test('social profile URLs are canonicalized and active profiles cannot submit a 
   );
 
   const queries = [];
+  const handleQuery = async (sql, values = []) => {
+    const query = String(sql);
+    queries.push({ query, values });
+    if (query.includes('INSERT INTO public.site_reviews')) {
+      // The conditional insert rejects the write: a duplicate profile
+      // already has a pending or approved review, so no row is returned.
+      return { rows: [] };
+    }
+    if (query.includes('FROM public.site_reviews') && query.includes("status IN ('pending', 'approved')")) {
+      return { rows: [{ '?column?': 1 }] };
+    }
+    return { rows: [] };
+  };
   globalThis.__dbPgPool = {
     ended: false,
     __dbConnectionString: getDatabaseUrl(),
     __dbPoolMax: isBuildPhase() ? 1 : 5,
     async end() {},
+    async query(sql, values = []) {
+      return handleQuery(sql, values);
+    },
     async connect() {
       return {
         async query(sql, values = []) {
-          const query = String(sql);
-          queries.push({ query, values });
-          if (query.includes('FROM public.site_reviews') && query.includes("status IN ('pending', 'approved')")) {
-            return { rows: [{ '?column?': 1 }] };
-          }
-          return { rows: [] };
+          return handleQuery(sql, values);
         },
         release() {},
       };
@@ -252,11 +273,10 @@ test('social profile URLs are canonicalized and active profiles cannot submit a 
   });
 
   assert.deepEqual(result, { duplicate: true, limited: false, review: null });
-  assert.ok(queries.some(({ query, values }) => (
-    query.includes('pg_advisory_xact_lock')
-    && values[0] === 'site-review-profile:https://social.example/sam'
-  )));
-  assert.equal(queries.filter(({ query }) => query.includes('INSERT INTO public.site_reviews')).length, 0);
+  // The duplicate check lives inside the single atomic INSERT ... SELECT,
+  // which is issued once and inserts zero rows.
+  assert.ok(queries.some(({ query }) => query.includes('INSERT INTO public.site_reviews') && query.includes('NOT EXISTS')));
+  assert.equal(queries.filter(({ query }) => query.includes('INSERT INTO public.site_reviews')).length, 1);
 });
 
 test('review feedback requires at least four whitespace-separated words', () => {

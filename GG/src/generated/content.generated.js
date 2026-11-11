@@ -1,6 +1,6 @@
 export const generatedContent = {
   "success": true,
-  "generatedAt": "2026-11-10T21:22:48.336Z",
+  "generatedAt": "2026-11-11T14:52:39.774Z",
   "posts": [
     {
       "id": "luxury-mens-fashion-ai-prompts-sophisticated-portraits-2026",

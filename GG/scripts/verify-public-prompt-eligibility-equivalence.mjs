@@ -4,7 +4,6 @@ import { loadExplicitMigrationEnvironment } from './lib/database-migration-safet
 import { getPgPool } from '../src/lib/db.js';
 import { isIndexablePrompt } from '../src/lib/prompt-constants.js';
 import {
-  containsMinorSubjectReference,
   getPublishedPromptSitemapRows,
   getPublicPromptDirectoryPayload,
   normalizePrompt,
@@ -33,6 +32,10 @@ function categoryFields(row) {
 }
 
 function legacySitemapEligiblePrompt(row) {
+  // Owner decision 2026-11-11: all published prompts are indexable, so
+  // sitemap eligibility is the single isIndexablePrompt rule. (Before
+  // that decision this used the broader containsMinorSubjectReference
+  // filter, which dropped any prompt mentioning boy/girl/teen/child.)
   const prompt = normalizePrompt(row, {
     suppressUnverifiedMedia: false,
     resolveLegacyMedia: true,
@@ -40,7 +43,7 @@ function legacySitemapEligiblePrompt(row) {
   return prompt.slug
     && prompt.title
     && prompt.prompt
-    && !containsMinorSubjectReference(prompt)
+    && isIndexablePrompt(prompt)
     ? prompt
     : null;
 }

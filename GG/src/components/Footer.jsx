@@ -68,10 +68,10 @@ export default function Footer() {
         <div className="grid items-start gap-0 md:grid-cols-2 md:gap-6 lg:grid-cols-[1.25fr_repeat(4,minmax(0,1fr))] lg:gap-7">
           <div className="mb-6 md:mb-0">
             <NavbarLogo />
-            <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p className="mt-4 text-sm leading-6 text-slate-700 dark:text-slate-300">
               Free digital AI prompt library for creators, with practical prompts for portraits, social content, and photo editing.
             </p>
-            <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-slate-400">
+            <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-400">
               Support: <a href="mailto:hello@aqprompts.com" className="text-[#c2410c] hover:underline">hello@aqprompts.com</a>
             </p>
             <HomeSocialLinks className="mt-4" />
@@ -79,7 +79,7 @@ export default function Footer() {
               href="https://findly.tools/aq-prompts?utm_source=aq-prompts"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-[#c2410c] hover:text-[#c2410c] dark:border-white/10 dark:text-slate-300 dark:hover:border-[#ff8a5c] dark:hover:text-[#ff8a5c]"
+              className="mt-4 inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-[#c2410c] hover:text-[#c2410c] dark:border-white/10 dark:text-slate-300 dark:hover:border-[#ff8a5c] dark:hover:text-[#ff8a5c]"
             >
               Featured on Findly.tools
             </a>
@@ -122,7 +122,7 @@ export default function Footer() {
                       <li key={link.label}>
                         <Link
                           href={link.href}
-                          className="text-sm font-medium text-[#4b5563] transition hover:text-[#c2410c] dark:text-[#9ca3af] dark:hover:text-[#c2410c]"
+                          className="text-sm font-medium text-[#374151] transition hover:text-[#c2410c] dark:text-[#9ca3af] dark:hover:text-[#c2410c]"
                         >
                           {link.label}
                         </Link>
@@ -136,9 +136,9 @@ export default function Footer() {
           })}
         </div>
 
-        <div className="mt-7 flex flex-col gap-3 border-t border-slate-200 pt-5 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-7 flex flex-col gap-3 border-t border-slate-200 pt-5 text-sm text-slate-600 dark:border-white/10 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <p>Copyright {currentYear} AQPrompts. Digital AI Prompt Library. All rights reserved.</p>
-          <CookieSettingsButton className="w-fit font-semibold text-slate-600 underline-offset-4 hover:text-[#c2410c] hover:underline dark:text-slate-300" />
+          <CookieSettingsButton className="w-fit font-semibold text-slate-700 underline-offset-4 hover:text-[#c2410c] hover:underline dark:text-slate-300" />
         </div>
       </div>
     </footer>

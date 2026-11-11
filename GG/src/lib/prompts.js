@@ -18,6 +18,7 @@ import {
   getPromptsPayload,
   normalizePrompt,
   getSlimAllPrompts,
+  getSlimPromptsForDetail,
   getRandomSlimPrompts,
   getSlimPromptsByIds,
   getSlimPromptsPage,
@@ -31,11 +32,7 @@ import {
 import { isBuildPhase } from '@/lib/db';
 
 export { getPromptCategory, getPromptCategoryUrl, getPromptUrl, isIndexablePrompt, PROMPT_BASE_PATH, PROMPT_CATEGORIES, slugifyPrompt };
-export { getAllPrompts, getPublishedPromptSitemapRows, getAllPromptSlugs, getCachedPromptBySlug, getPromptBySlug, getPromptsPayload, normalizePrompt, getSlimAllPrompts, getRandomSlimPrompts, getSlimPromptsByIds, getSlimPromptsPage, getPromptFeedRows, getPublishedPromptCategorySlugs, getHomepagePromptCards, getSlimPromptsPayload, getNewsletterWelcomePrompts, getPromptListingPagePayload };
-
-export async function getIndexablePrompts() {
-  return (await getAllPrompts()).filter(isIndexablePrompt);
-}
+export { getAllPrompts, getPublishedPromptSitemapRows, getAllPromptSlugs, getCachedPromptBySlug, getPromptBySlug, getPromptsPayload, normalizePrompt, getSlimAllPrompts, getSlimPromptsForDetail, getRandomSlimPrompts, getSlimPromptsByIds, getSlimPromptsPage, getPromptFeedRows, getPublishedPromptCategorySlugs, getHomepagePromptCards, getSlimPromptsPayload, getNewsletterWelcomePrompts, getPromptListingPagePayload };
 
 /**
  * Returns the count of complete published prompts, without applying SEO
@@ -55,26 +52,6 @@ export async function getPublishedPromptCount() {
  */
 export function getCategoryCount() {
   return Object.keys(PROMPT_CATEGORIES).length;
-}
-
-export async function getIndexablePromptsPayload() {
-  const payload = await getPromptsPayload();
-  return {
-    ...payload,
-    prompts: (payload.prompts || []).filter(isIndexablePrompt),
-  };
-}
-
-/**
- * Slim version of getIndexablePromptsPayload — excludes heavy editorial fields.
- * Use for listing pages, homepage, category pages, and trending widgets.
- */
-export async function getSlimIndexablePromptsPayload() {
-  const payload = await getSlimPromptsPayload();
-  return {
-    ...payload,
-    prompts: (payload.prompts || []).filter(isIndexablePrompt),
-  };
 }
 
 function cleanText(value = '') {
@@ -110,25 +87,24 @@ export function promptMatchesCategory(prompt, categorySlug) {
     || aliases.some((alias) => legacyCategoryValues.includes(alias));
 }
 
-export async function getPromptsByCategory(categorySlug) {
-  const category =
-    PROMPT_CATEGORIES[categorySlug] ||
-    Object.values(PROMPT_CATEGORIES).find((item) => item.slug === categorySlug);
-  const prompts = (await getIndexablePrompts()).filter((prompt) =>
-    promptMatchesCategory(prompt, categorySlug),
-  );
-
-  if (!category) return prompts;
-
-  return prompts.sort((first, second) => {
-    const firstIsPrimary = first.primaryCategorySlug === category.slug ? 1 : 0;
-    const secondIsPrimary = second.primaryCategorySlug === category.slug ? 1 : 0;
-    return firstIsPrimary - secondIsPrimary;
+/**
+ * Newest-first sort, direct: createdAt desc, id desc as tiebreak. The live
+ * category order (build path: id-ascending rows, reversed in the component)
+ * is pure newest-first with no primary/non-primary grouping, and created_at
+ * is monotonic with id, so this reproduces that order exactly on both the
+ * build and runtime paths — no downstream .reverse() needed.
+ */
+function sortPromptsNewestFirst(prompts) {
+  return [...prompts].sort((first, second) => {
+    const firstCreated = Date.parse(first.createdAt || '') || 0;
+    const secondCreated = Date.parse(second.createdAt || '') || 0;
+    if (secondCreated !== firstCreated) return secondCreated - firstCreated;
+    return (Number(second.id) || 0) - (Number(first.id) || 0);
   });
 }
 
 /**
- * Slim version of getPromptsByCategory — excludes heavy editorial fields.
+ * Category listing fetcher — excludes heavy editorial fields.
  * Use for category listing pages.
  */
 export async function getSlimPromptsByCategory(categorySlug) {
@@ -139,7 +115,7 @@ export async function getSlimPromptsByCategory(categorySlug) {
     const slimPayload = await getSlimPromptsPayload();
     const categoryPrompts = (slimPayload.prompts || [])
       .filter((prompt) => promptMatchesCategory(prompt, categorySlug));
-    return filterCategoryListingPrompts(categoryPrompts);
+    return sortPromptsNewestFirst(filterCategoryListingPrompts(categoryPrompts));
   }
 
   const legacyCategorySlugs = { men: 'boys', women: 'girls' };
@@ -147,19 +123,29 @@ export async function getSlimPromptsByCategory(categorySlug) {
     category.slug,
     legacyCategorySlugs[category.slug],
   ].filter(Boolean))];
-  const { prompts: filteredPrompts = [] } = await getSlimPromptsPage({
-    categorySlugs,
-    limit: 1000,
-  });
+  // Paginate like the library instead of one LIMIT 1000 fetch: the
+  // largest real category is 270 rows (women, 2026-11-11), so a single
+  // fetch over-pulls and a fixed cap would silently truncate a category
+  // that grows past it. Pages of 100 stop after the real row count, and
+  // the loop ends on a short page or once the reported total is reached,
+  // so no category can ever be truncated.
+  const CATEGORY_RUNTIME_PAGE_SIZE = 100;
+  const filteredPrompts = [];
+  let offset = 0;
+  for (;;) {
+    const { prompts: pagePrompts = [], totalCount = 0 } = await getSlimPromptsPage({
+      categorySlugs,
+      limit: CATEGORY_RUNTIME_PAGE_SIZE,
+      offset,
+    });
+    filteredPrompts.push(...pagePrompts);
+    if (pagePrompts.length < CATEGORY_RUNTIME_PAGE_SIZE) break;
+    offset += pagePrompts.length;
+    if (offset >= totalCount) break;
+  }
   const prompts = filterCategoryListingPrompts(filteredPrompts);
 
-  if (!category) return prompts;
-
-  return prompts.sort((first, second) => {
-    const firstIsPrimary = first.primaryCategorySlug === category.slug ? 1 : 0;
-    const secondIsPrimary = second.primaryCategorySlug === category.slug ? 1 : 0;
-    return firstIsPrimary - secondIsPrimary;
-  });
+  return sortPromptsNewestFirst(prompts);
 }
 
 export function getRelatedPrompts(currentPrompt, allPrompts = [], limit = 6) {
@@ -220,12 +206,3 @@ export function getRelatedPrompts(currentPrompt, allPrompts = [], limit = 6) {
   return [...manualPrompts, ...additionalPrompts];
 }
 
-export function getAdjacentPrompts(currentPrompt, allPrompts = []) {
-  const indexablePrompts = allPrompts.filter(isIndexablePrompt);
-  const index = indexablePrompts.findIndex((prompt) => prompt.slug === currentPrompt?.slug);
-
-  return {
-    previousPrompt: index > 0 ? indexablePrompts[index - 1] : null,
-    nextPrompt: index >= 0 && index < indexablePrompts.length - 1 ? indexablePrompts[index + 1] : null,
-  };
-}

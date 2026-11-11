@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { canIssueLoginToken, storeLoginToken } from '@/lib/auth-store';
 import { INTEGRATION_UNAVAILABLE_MESSAGE, isIntegrationEnabled, isPreviewDeployment } from '@/lib/deployment-env';
 import { rejectPublicWriteWhenAdminOnly } from '@/lib/database-mode';
+import { getClientIp } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -24,8 +25,7 @@ function hash(value) {
 }
 
 function getRequestFingerprint(request) {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const ip = forwardedFor || request.headers.get('x-real-ip') || 'unknown';
+  const ip = getClientIp(request);
   return hash(`${ip}:${process.env.AUTH_SECRET || ''}`);
 }
 

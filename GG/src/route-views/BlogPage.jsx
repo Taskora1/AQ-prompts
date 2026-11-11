@@ -15,6 +15,22 @@ import NewsletterSignup from '../components/NewsletterSignup';
 import useScrollReveal from '../hooks/use-scroll-reveal';
 import { formatStableDate } from '../lib/utils';
 
+// Real date for a post, in priority order. publishDate/date come from the
+// blog_posts.publish_date column; createdAt is the row's creation timestamp.
+// Returns null when the post has no date at all: callers render no date
+// rather than a made-up one (there used to be a hardcoded '2026-03-01'
+// fallback here, which would have shown "1 March 2026" for a dateless post).
+function getPostDate(post) {
+  if (!post) return null;
+  return post.publishDate || post.date || post.createdAt || post.created_at || null;
+}
+
+function PostDate({ post, className }) {
+  const date = getPostDate(post);
+  if (!date) return null;
+  return <span className={className}>{formatStableDate(date)}</span>;
+}
+
 const BlogPage = ({ initialPosts = [] }) => {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -74,6 +90,9 @@ const BlogPage = ({ initialPosts = [] }) => {
   const featuredPost = filteredPosts[0];
   const showFeaturedSection =
     selectedCategory === 'All' && !deferredSearchQuery.trim() && filteredPosts.length > 0;
+  // The featured post is shown in its own Featured section above; exclude it
+  // from the All Articles grid/list so it is not duplicated.
+  const gridPosts = showFeaturedSection ? filteredPosts.slice(1) : filteredPosts;
   return (
     <>
 
@@ -82,7 +101,7 @@ const BlogPage = ({ initialPosts = [] }) => {
 
         <main>
           {/* Page Hero */}
-          <section className="relative bg-white py-12 sm:py-16 dark:bg-[#0a0a0f]">
+          <section className="relative bg-white py-8 sm:py-10 dark:bg-[#0a0a0f]">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center max-w-3xl mx-auto">
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[var(--text-primary)] mb-4 sm:mb-6">
@@ -148,9 +167,9 @@ const BlogPage = ({ initialPosts = [] }) => {
 
           {/* Featured Post */}
           {showFeaturedSection && featuredPost && (
-            <section className="py-12 sm:py-16">
+            <section className="py-8 sm:py-10">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center mb-8 sm:mb-12">
+                <div className="text-center mb-6 sm:mb-8">
                   <h2 className="reveal text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-4">Featured Article</h2>
                 <div className="section-divider" />
                 </div>
@@ -178,9 +197,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                       </CardDescription>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
-                          <span>
-                            {formatStableDate(featuredPost.publishDate || featuredPost.date || '2026-03-01')}
-                          </span>
+                          <PostDate post={featuredPost} />
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-4 w-4" />
                             {featuredPost.readingTime || 5} min read
@@ -199,9 +216,9 @@ const BlogPage = ({ initialPosts = [] }) => {
           )}
 
           {/* Blog Posts Grid/List */}
-          <section className="py-12 sm:py-16 bg-[var(--bg-secondary)]">
+          <section className="py-8 sm:py-10 bg-[var(--bg-secondary)]">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center mb-8 sm:mb-12">
+              <div className="text-center mb-6 sm:mb-8">
                 <h2 className="reveal text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mb-4">
                   {selectedCategory === 'All' ? 'All Articles' : `${selectedCategory} Articles`}
                   {searchQuery && ` matching "${searchQuery}"`}
@@ -238,7 +255,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                 </div>
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                  {filteredPosts.map((post, index) => (
+                  {gridPosts.map((post, index) => (
                     <React.Fragment key={post.slug}>
                       <Card className="reveal-card card-premium overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 group">
                       <div className="w-full">
@@ -262,7 +279,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                           </CardTitle>
                           <CardDescription className="text-sm text-[var(--text-secondary)]">
                             <span className="inline-flex items-center gap-3">
-                              <span>{formatStableDate(post.publishDate || post.date || '2026-03-01')}</span>
+                              <PostDate post={post} />
                               <span className="inline-flex items-center gap-1">
                                 <Clock className="h-3.5 w-3.5" />
                                 {post.readingTime || 5} min read
@@ -283,8 +300,8 @@ const BlogPage = ({ initialPosts = [] }) => {
                           </Button>
                         </CardFooter>
                       </Card>
-                      {/* Insert newsletter after every 6th post */}
-                      {(index + 1) % 6 === 0 && index < filteredPosts.length - 1 && (
+                      {/* Insert the single newsletter form once, after the 6th post */}
+                      {index === 5 && index < gridPosts.length - 1 && (
                         <div className="col-span-full">
                           <NewsletterSignup variant="compact" />
                         </div>
@@ -315,12 +332,12 @@ const BlogPage = ({ initialPosts = [] }) => {
                 </div>
               ) : (
                 <div className="max-w-4xl mx-auto space-y-6">
-                  {filteredPosts.map((post, index) => (
+                  {gridPosts.map((post, index) => (
                     <React.Fragment key={post.slug}>
                     <Card key={post.slug} className="reveal-card card-premium hover:shadow-lg transition-all duration-300 hover:border-primary/50">
                       <div className="md:flex">
                         <div className="md:w-1/3">
-                        <div className="aspect-video w-full md:w-auto md:h-full">
+                        <div className="w-full md:w-auto">
                           <ResponsiveImage
                             src={post.image || post.coverImage || post.featuredImage || '/images/prompts/cinematic-sunset-beach-portrait.webp'}
                             alt={post.featuredImageAltText || post.title}
@@ -329,6 +346,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                             priority={index === 0}
                             fetchPriority={index === 0 ? 'high' : undefined}
                             sizes="(max-width: 768px) 100vw, 33vw"
+                            preserveAspect
                           />
                           </div>
                         </div>
@@ -337,9 +355,7 @@ const BlogPage = ({ initialPosts = [] }) => {
                             <Badge className="bg-primary hover:bg-primary/90">
                               {post.category || 'Social Media'}
                             </Badge>
-                            <span className="text-sm text-[var(--text-secondary)]">
-                              {formatStableDate(post.publishDate || post.date || '2026-03-01')}
-                            </span>
+                            <PostDate post={post} className="text-sm text-[var(--text-secondary)]" />
                             <span className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)]">
                               <Clock className="h-3.5 w-3.5" />
                               {post.readingTime || 5} min read
@@ -361,37 +377,14 @@ const BlogPage = ({ initialPosts = [] }) => {
                         </div>
                       </div>
                     </Card>
-                    {/* Insert newsletter after every 6th post in list view */}
-                    {(index + 1) % 6 === 0 && index < filteredPosts.length - 1 && (
+                    {/* Insert the single newsletter form once, after the 6th post in list view */}
+                    {index === 5 && index < gridPosts.length - 1 && (
                       <NewsletterSignup variant="compact" />
                     )}
                     </React.Fragment>
                   ))}
                 </div>
               )}
-            </div>
-          </section>
-
-          {/* Newsletter CTA */}
-          <section className="py-12 sm:py-16">
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <Card className="max-w-3xl mx-auto bg-[#ff6b35] text-white border-none shadow-2xl">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl sm:text-3xl text-white mb-4">
-                    Stay Updated with Latest Growth Strategies
-                  </CardTitle>
-                  <CardDescription className="text-white/90 text-base sm:text-lg">
-                    Get our best articles delivered directly to your inbox every week
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <Button asChild size="lg" className="btn-premium bg-white text-primary hover:bg-[#f9fafb] rounded-full">
-                    <Link href="/#newsletter">
-                      Subscribe to Newsletter <ArrowRight className="ml-2 w-5 h-5" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
             </div>
           </section>
         </main>

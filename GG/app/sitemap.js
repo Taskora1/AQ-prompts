@@ -65,20 +65,31 @@ export default async function sitemap() {
     })
   );
 
-  try {
-    const authors = await listAuthorSitemapRows();
-    for (const author of authors) {
-      if (!author?.slug) continue;
-      entries.push(entry(author.url, author.updatedAt, {
-        changeFrequency: 'monthly',
-        priority: 0.5,
-      }));
-    }
-  } catch (error) {
-    console.error('Author profile sitemap query failed:', error);
+  // The three source queries are independent, so they run in parallel
+  // (the image sitemap already does this). The authors query keeps its
+  // own try/catch behaviour via .catch() — an authors failure still
+  // logs and yields no author entries instead of failing the sitemap —
+  // while a prompts or posts failure still fails the whole sitemap, as
+  // before. Entries are appended in the same order (authors, prompts,
+  // posts), so the output is identical.
+  const [authors, prompts, posts] = await Promise.all([
+    listAuthorSitemapRows().catch((error) => {
+      console.error('Author profile sitemap query failed:', error);
+      return [];
+    }),
+    getPublishedPromptSitemapRows(),
+    // Read published posts from Neon (slim — sitemap only needs slug + dates, no content columns)
+    getPublishedBlogPostsForFeed(),
+  ]);
+
+  for (const author of authors) {
+    if (!author?.slug) continue;
+    entries.push(entry(author.url, author.updatedAt, {
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    }));
   }
 
-  const prompts = await getPublishedPromptSitemapRows();
   for (const prompt of prompts) {
     if (!prompt?.slug) continue;
     entries.push(entry(getPromptUrl(prompt), prompt.createdAt || prompt.updatedAt, {
@@ -86,9 +97,6 @@ export default async function sitemap() {
       priority: 0.6,
     }));
   }
-
-  // Read published posts from Neon (slim — sitemap only needs slug + dates, no content columns)
-  const posts = await getPublishedBlogPostsForFeed();
 
   for (const post of posts) {
     if (!post?.slug) continue;

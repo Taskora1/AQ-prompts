@@ -6,10 +6,7 @@ import {
   isIndexablePrompt,
   PROMPT_BASE_PATH,
 } from '@/lib/prompt-constants';
-import {
-  getAllPrompts as getAllDatabasePrompts,
-  getPromptBySlug as getDatabasePromptBySlug,
-} from '@/lib/prompts-db';
+import { getPromptBySlug as getDatabasePromptBySlug } from '@/lib/prompts-db';
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_OG_IMAGE,
@@ -319,10 +316,6 @@ export function buildPromptCategoryMetadata(key) {
     ...meta,
     keywords: ['AI portrait prompts', meta.category, 'Instagram prompts', 'Midjourney prompts'],
   });
-}
-
-export async function getAllPrompts() {
-  return getAllDatabasePrompts();
 }
 
 export async function findPromptBySlug(slug) {

@@ -2,6 +2,7 @@ import {
   adminPasswordHashMatches,
   hashAdminPassword,
 } from './admin-password.js';
+import { verifyAdminSessionToken } from './admin-session-core.js';
 import { getPgPool } from './db.js';
 
 export const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -24,6 +25,7 @@ function mapUser(row) {
     id: Number(row.id),
     email: row.email,
     role: row.role,
+    sessionVersion: Number(row.sessionVersion ?? 0),
     createdAt: row.createdAt || '',
     lastLoginAt: row.lastLoginAt || '',
   };
@@ -97,6 +99,7 @@ export async function getAdminUserById(id) {
         id,
         email,
         role,
+        session_version AS "sessionVersion",
         created_at::text AS "createdAt",
         last_login_at::text AS "lastLoginAt"
       FROM users
@@ -107,6 +110,56 @@ export async function getAdminUserById(id) {
   );
 
   return mapUser(result.rows[0]);
+}
+
+/**
+ * Atomically bump a user's session version, invalidating every session
+ * token issued before the bump. A single statement, so it stays atomic
+ * on the Neon HTTP driver (no BEGIN/COMMIT). Returns the new version,
+ * or null when the user does not exist.
+ */
+export async function bumpAdminSessionVersion(id) {
+  const result = await getPgPool().query(
+    `
+      UPDATE users
+      SET session_version = session_version + 1
+      WHERE id = $1
+      RETURNING session_version AS "sessionVersion"
+    `,
+    [id],
+  );
+  const row = result.rows[0];
+  return row ? Number(row.sessionVersion) : null;
+}
+
+/**
+ * Verify an admin session token and check it against the user's current
+ * session version in the database. A token whose sv does not match the
+ * stored version — or a token issued before session versions existed,
+ * which has no sv — is rejected. Role and email always come from the
+ * database, so a demoted admin loses elevated rights immediately
+ * instead of keeping them until token expiry.
+ *
+ * Fail closed: any database error rejects the session rather than
+ * letting a possibly-revoked token through.
+ */
+export async function verifyAdminSessionWithRevocation(value) {
+  const session = verifyAdminSessionToken(value);
+  if (!session) return null;
+
+  let user;
+  try {
+    user = await getAdminUserById(session.userId);
+  } catch {
+    return null;
+  }
+  if (!user) return null;
+  if (Number(user.sessionVersion ?? 0) !== Number(session.sv)) return null;
+
+  return {
+    session: { ...session, role: user.role, email: user.email },
+    user,
+  };
 }
 
 async function ensureAdminLoginRateLimitSchema(pool) {
@@ -139,6 +192,19 @@ export async function authenticateAdminUserWithDailyIpLimit(email, password, ipF
   await ensureAdminLoginRateLimitSchema(pool);
   const client = await pool.connect();
 
+  // NOTE (audit #6): the BEGIN / pg_advisory_xact_lock / COMMIT below are
+  // no-ops on the Neon HTTP driver (see src/lib/db.js) — every statement
+  // runs as its own autocommit request, so there is no real mutual
+  // exclusion here. The failure counter itself stays exact because the
+  // increment is a single atomic INSERT ... ON CONFLICT DO UPDATE
+  // statement. The residual race is the limit pre-check (the SELECT just
+  // below): two requests arriving together while the count is just below
+  // the limit can both pass it and each record one more failure before
+  // the limit engages. That only ever grants extra guesses at the
+  // boundary — the count itself is never lost — and it cannot be closed
+  // with a single statement without changing the semantics: the check
+  // must run before the password is verified, and the increment must
+  // only happen after a failed check. Accepted as a platform limitation.
   try {
     await client.query('BEGIN');
     await client.query(
@@ -216,6 +282,7 @@ export async function authenticateAdminUserWithDailyIpLimit(email, password, ipF
           id,
           email,
           role,
+          session_version AS "sessionVersion",
           created_at::text AS "createdAt",
           last_login_at::text AS "lastLoginAt"
       `,

@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 import { PromptDetailPageServer } from '@/components/prompts/PromptPages';
 import { buildPromptMetadata } from '@/lib/metadata';
-import { getAllPromptSlugs, getCachedPromptBySlug, getSlimAllPrompts, getPromptUrl, isIndexablePrompt } from '@/lib/prompts';
+import { getAllPromptSlugs, getCachedPromptBySlug, getPromptUrl, getSlimPromptsForDetail, isIndexablePrompt } from '@/lib/prompts';
 
 export const dynamic = 'force-static';
 export const revalidate = false;
@@ -25,15 +25,17 @@ export async function generateMetadata({ params }) {
 
 export default async function Page({ params }) {
   const { promptSlug } = await params;
-  // Full row (per-slug PK query) only for the prompt itself; related/prev/next
-  // navigation comes from the cached slim payload instead of a full-table scan.
-  const [prompt, slimPrompts] = await Promise.all([
-    getCachedPromptBySlug(promptSlug),
-    getSlimAllPrompts(),
-  ]);
+  // Full row (per-slug PK query) only for the prompt itself. Related/secret
+  // navigation comes from a targeted fetch — same-category candidates +
+  // manual related ids (+ the configured secret prompt) — instead of the
+  // whole-table slim payload (576 rows, ~1.2 MB). The targeted query needs
+  // the prompt's categories and manual ids, so it runs after the PK query
+  // rather than in parallel with it.
+  const prompt = await getCachedPromptBySlug(promptSlug);
 
-  if (!prompt) redirect('/tools/ai-image-prompts');
+  if (!prompt) notFound();
 
+  const slimPrompts = await getSlimPromptsForDetail(prompt);
   const indexablePrompts = slimPrompts.filter(isIndexablePrompt);
 
   return <PromptDetailPageServer prompt={prompt} allPrompts={indexablePrompts} />;

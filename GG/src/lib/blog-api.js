@@ -3,7 +3,6 @@
  *
  * This module replaces the generated-file-based blog reads in api.js.
  * It provides the same interface that the blog frontend expects:
- * - getAllBlogPostsSnapshot()
  * - getBlogPostSnapshotBySlug(slug)
  * - getAllBlogPostSlugs()
  *
@@ -11,17 +10,12 @@
  */
 
 import {
-  getAllBlogPosts,
-  getPublishedBlogPosts,
   getPublishedBlogPostsSlim,
   getPublishedBlogPostsForRelated,
   getCachedBlogPostBySlug,
   getPublishedBlogPostBySlug,
   listBlogPostsForAdmin,
 } from './blog-db.js';
-
-// Note: getPublishedBlogPosts (full) is only used for related-posts lookup inside
-// getBlogPostSnapshotBySlug — a detail-page render. Listing surfaces use the slim variants.
 
 const SITE_URL = 'https://www.aqprompts.com';
 
@@ -121,20 +115,6 @@ function findRelatedPosts(post, allPosts, limit = 3) {
 
 // ── Public API ──────────────────────────────────────────────────────────
 
-/**
- * Get all blog posts (for admin — includes drafts).
- * Returns a payload matching the format expected by the blog frontend.
- */
-export async function getAllBlogPostsSnapshot() {
-  const posts = (await getAllBlogPosts()).map(normalizePost).filter(isValidPost);
-  return {
-    success: true,
-    posts,
-    total: posts.length,
-    count: posts.length,
-  };
-}
-
 export async function getAdminBlogPostsSnapshot(params = {}) {
   const result = await listBlogPostsForAdmin(params);
   const posts = result.rows.map(normalizePost).filter(isValidPost);
@@ -155,21 +135,7 @@ export async function getAdminBlogPostsSnapshot(params = {}) {
 }
 
 /**
- * Get published blog posts only (for public pages).
- * Returns a payload matching the format expected by the blog frontend.
- */
-export async function getPublishedBlogPostsSnapshot() {
-  const posts = (await getPublishedBlogPosts()).map(normalizePost).filter(isValidPost);
-  return {
-    success: true,
-    posts,
-    total: posts.length,
-    count: posts.length,
-  };
-}
-
-/**
- * Slim version of getPublishedBlogPostsSnapshot — excludes heavy content columns.
+ * Published-posts snapshot — excludes heavy content columns.
  * Use for blog listing pages, homepage, RSS feeds.
  */
 export async function getPublishedBlogPostsSnapshotSlim() {

@@ -37,7 +37,7 @@ export default function Navbar() {
             className="mx-auto flex h-16 max-w-7xl items-center justify-between px-8"
             aria-label="Main navigation"
           >
-            <NavbarLogo className="shrink-0" width={106} height={28} />
+            <NavbarLogo className="shrink-0" width={160} height={40} />
 
             <div className="hidden items-center gap-7 xl:flex">
               {navLinks.map((link) => (
@@ -76,7 +76,7 @@ export default function Navbar() {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <NavbarLogo className="shrink-0" width={90} height={24} />
+              <NavbarLogo className="shrink-0" width={120} height={32} />
             </div>
 
             {/* Right: Saved prompts and theme toggle */}

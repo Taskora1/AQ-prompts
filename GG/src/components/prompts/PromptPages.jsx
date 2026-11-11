@@ -67,7 +67,11 @@ export function PromptListingPage({
     ? CATEGORY_SUMMARIES[category.slug] || String(fullDescription).split(/[.!?](?:\s|$)/, 1)[0].trim() + '.'
     : fullDescription;
   const initialCardLimit = category?.slug === 'business' ? MAIN_PAGE_CARD_LIMIT : category ? CATEGORY_PAGE_INITIAL_CARD_LIMIT : MAIN_PAGE_CARD_LIMIT;
-  const orderedPrompts = [...prompts].reverse();
+  // Prompts already arrive newest-first: category pages from
+  // getSlimPromptsByCategory and the library page from
+  // getPromptListingPagePayload (id DESC). No .reverse() here — the order
+  // must not depend on a second inversion cancelling out the first.
+  const orderedPrompts = [...prompts];
   // Render-level pagination: only the initial slice is serialized into the page
   // for hydration; "Load more" and search fetch additional data from the
   // lightweight paginated API routes (/api/prompts/page, /api/prompts/search).
@@ -106,7 +110,7 @@ export function PromptListingPage({
       <JsonLd data={schema} />
       <Header />
       <main id="main-content" className="min-h-screen bg-[var(--bg-secondary)]">
-        <section className="border-b border-transparent bg-[var(--bg-primary)] py-10 sm:py-14 dark:border-white/10 dark:bg-[#14151d]">
+        <section className="border-b border-transparent bg-[var(--bg-primary)] py-8 sm:py-10 dark:border-white/10 dark:bg-[#14151d]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <nav className="mb-4 flex min-w-0 flex-wrap gap-2 text-xs text-[var(--text-secondary)] sm:mb-5 sm:text-sm">
               <Link href="/" className="hover:text-[#c2410c]">Home</Link>
@@ -523,6 +527,7 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
                   image={related.image || related.images?.[0] || ''}
                   imageAlt={related.imageAlt || related.imageAltTexts?.['0'] || related.imageAltTexts?.[0] || related.title || ''}
                   slug={related.slug || ''}
+                  promptText={related.prompt || ''}
                   mobileTitleBelow
                   uniformAspectRatio
                 />

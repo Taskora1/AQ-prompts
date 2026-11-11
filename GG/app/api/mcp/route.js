@@ -8,6 +8,7 @@ import {
 } from '../../../src/lib/mcp-auth.js';
 import { hasMcpOAuthAuthorization } from '../../../src/lib/mcp-oauth-db.js';
 import { handleMcpProtocolRequest } from '../../../src/lib/mcp-server.js';
+import { isProductionDeployment } from '../../../src/lib/deployment-env.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,8 +24,11 @@ function jsonResponse(body, status, headers = {}) {
 }
 
 async function handleClaimsDiagnostic(request) {
+  // VERCEL_ENV is never set on Workers, so gate on the shared deployment
+  // detection instead: the diagnostic stays off in production and is only
+  // available in preview/dev when the flag is also explicitly enabled.
   if (
-    process.env.VERCEL_ENV !== 'preview'
+    isProductionDeployment()
     || process.env[CLAIMS_DIAGNOSTIC_FLAG] !== 'true'
   ) {
     return jsonResponse({ error: 'Not found.' }, 404);

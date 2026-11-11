@@ -37,6 +37,11 @@ export function createAdminSessionToken(user) {
       userId: Number(user.id),
       email: String(user.email || '').trim().toLowerCase(),
       role: user.role,
+      // Session version at issue time. Verification compares this against
+      // the user's current session_version in the database, so a logout
+      // or password change (which bumps the stored version) invalidates
+      // every token issued before the bump.
+      sv: Number(user.sessionVersion ?? 0),
       exp: expiresAt,
     }),
   ).toString('base64url');
@@ -56,6 +61,10 @@ export function verifyAdminSessionToken(value) {
       && typeof session.email === 'string'
       && session.email.includes('@')
       && ADMIN_SESSION_ROLES.includes(session.role)
+      // A token without a session version was issued before revocation
+      // existed and is rejected; every current token must carry sv.
+      && Number.isSafeInteger(session.sv)
+      && session.sv >= 0
       && Number.isFinite(session.exp)
       && session.exp > Math.floor(Date.now() / 1000);
 

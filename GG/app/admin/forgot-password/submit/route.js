@@ -9,6 +9,7 @@ import {
   createPasswordResetToken,
   ensurePasswordResetTable,
 } from '@/lib/admin-password-reset-db';
+import { getClientIp } from '@/lib/rate-limit';
 
 const FROM_EMAIL = 'AQPrompts <hello@aqprompts.com>';
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -27,8 +28,7 @@ function hash(value) {
 }
 
 function getRequestFingerprint(request) {
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const ip = forwardedFor || request.headers.get('x-real-ip') || 'unknown';
+  const ip = getClientIp(request);
   return hash(`${ip}:${process.env.AUTH_SECRET || ''}`);
 }
 
@@ -108,7 +108,7 @@ export async function POST(request) {
 
     // Generate reset token and OTP
     const { rawToken, otp } = await createPasswordResetToken(user.id);
-    log('Token and OTP created — OTP=%s for user_id=%d', otp, user.id);
+    log('Token and OTP created for user_id=%d', user.id);
 
     // Send OTP via email
     log('Sending OTP email to: %s ...', email);

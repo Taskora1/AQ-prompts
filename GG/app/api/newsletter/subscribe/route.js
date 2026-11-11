@@ -1,6 +1,11 @@
 import { Resend } from 'resend';
 
 import { INTEGRATION_UNAVAILABLE_MESSAGE, isIntegrationEnabled } from '@/lib/deployment-env';
+import {
+  addNewsletterSubscriber,
+  ensureNewsletterTable,
+  isNewsletterSubscribed,
+} from '@/lib/newsletter-db';
 import { getNewsletterWelcomePrompts } from '@/lib/prompts';
 
 export const runtime = 'nodejs';
@@ -8,9 +13,7 @@ export const runtime = 'nodejs';
 const WELCOME_SUBJECT = '\uD83C\uDFA8 Here are 5 free AI portrait prompts for you!';
 const FROM_EMAIL = 'AQPrompts <hello@aqprompts.com>';
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RECENT_SEND_WINDOW_MS = 6 * 60 * 60 * 1000;
 const recentAttempts = new Map();
-const recentSends = new Map();
 
 function normalizeEmail(value = '') {
   return String(value).trim().toLowerCase();
@@ -91,10 +94,12 @@ export async function POST(request) {
   try {
     const now = Date.now();
     pruneMap(recentAttempts, now, RATE_LIMIT_WINDOW_MS);
-    pruneMap(recentSends, now, RECENT_SEND_WINDOW_MS);
 
-    const lastSentAt = recentSends.get(normalizedEmail) || 0;
-    if (now - lastSentAt < RECENT_SEND_WINDOW_MS) {
+    // The 6-hour dedupe used to live in an in-memory Map, which was lost
+    // on every Worker restart. It now reads the stored subscribers table,
+    // so a repeat subscribe never resends the welcome email.
+    await ensureNewsletterTable();
+    if (await isNewsletterSubscribed(normalizedEmail)) {
       return Response.json({ success: true, alreadySubscribed: true });
     }
 
@@ -110,6 +115,9 @@ export async function POST(request) {
       return Response.json({ error: 'No prompts are available for the welcome email.' }, { status: 500 });
     }
 
+    // Send FIRST, then store: if the welcome email fails (502), no row
+    // is inserted, so a later retry sends the email instead of hitting
+    // the dedupe check and returning alreadySubscribed without resending.
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -122,7 +130,18 @@ export async function POST(request) {
       return Response.json({ error: 'Could not send welcome email.' }, { status: 502 });
     }
 
-    recentSends.set(normalizedEmail, now);
+    // Only store the subscriber after the welcome email was sent
+    // successfully. If this insert fails, return a 500 (do not claim
+    // success) and do NOT resend the email.
+    try {
+      await addNewsletterSubscriber(normalizedEmail);
+    } catch (insertError) {
+      console.error('Newsletter subscriber insert failed after welcome email was sent.', insertError);
+      return Response.json(
+        { error: 'Could not subscribe this email right now.' },
+        { status: 500 },
+      );
+    }
 
     return Response.json({ success: true });
   } catch (error) {

@@ -1,6 +1,3 @@
-import { isHighRiskPublicMedia } from './media-safety.js';
-import { isLowValuePromptSlug } from './content-indexing-policy.js';
-
 export const PROMPT_BASE_PATH = '/tools/ai-image-prompts';
 export const PROMPT_LIBRARY_TYPES = ['photo', 'text'];
 
@@ -123,37 +120,18 @@ export const PROMPT_CATEGORIES = {
 };
 
 export function shouldNoIndexPrompt(prompt = {}) {
-  const source = [
-    prompt.slug,
-    prompt.title,
-    prompt.prompt,
-    ...(Array.isArray(prompt.tags) ? prompt.tags : []),
-  ].join(' ').toLowerCase();
-
-  const depictsNamedOrProtectedSubject =
-    /\b(imran khan|pti|celebrity|disney|pixar|netflix|vogue|forbes|gq|tedx)\b/.test(source);
-  const explicitlyIncludesMinor =
-    /\b(?:[0-9]|1[0-7])[- ]year[- ]old\b|\b(?:child|minor|teenager|teen boy|teen girl)\b/.test(source);
-  const ambiguousMinor =
-    /\b(?:boy|girl)\b/.test(source)
-    && !/\b(?:adult|woman|women|man|men|businessman|bride|groom)\b/.test(source);
-
-  const mediaContext = [
-    prompt.slug,
-    prompt.title,
-    prompt.prompt,
-    prompt.intro,
-    ...(Array.isArray(prompt.tags) ? prompt.tags : []),
-  ].filter(Boolean).join(' ');
-  const hasHighRiskMedia = [prompt.image, ...(prompt.images || []), prompt.ogImage]
-    .filter(Boolean)
-    .some((media) => isHighRiskPublicMedia(media, mediaContext));
-
-  return isLowValuePromptSlug(prompt.slug)
-    || depictsNamedOrProtectedSubject
-    || explicitlyIncludesMinor
-    || ambiguousMinor
-    || hasHighRiskMedia;
+  // Owner decision 2026-11-11: ALL published prompts are indexable.
+  // The September 2026 noindex rule (audited low-value slug lists,
+  // named/protected subjects, minor signals, high-risk media) is retired
+  // as an active gate: the slug lists in content-indexing-policy.js are
+  // retained as audit history only, and this function now always returns
+  // false so metadata, sitemap, static params and listing filters all
+  // follow the single rule. Callers are unchanged; isIndexablePrompt()
+  // below is therefore always true. Keep this function (do not inline or
+  // delete it) so the decision point stays in one place if indexing
+  // policy ever needs to change again.
+  void prompt;
+  return false;
 }
 
 export function isIndexablePrompt(prompt = {}) {

@@ -19,8 +19,12 @@ test('sitemap includes complete published prompt detail routes', async () => {
   assert.match(promptDatabase, /AND NULLIF\(BTRIM\(p\.title\), ''\) IS NOT NULL/);
   assert.match(promptDatabase, /AND NULLIF\(BTRIM\(p\.prompt\), ''\) IS NOT NULL/);
   assert.ok(sitemapEligibility);
-  assert.match(sitemapEligibility, /containsMinorSubjectReference/);
-  assert.doesNotMatch(sitemapEligibility, /isIndexablePrompt/);
+  // Owner decision 2026-11-11: every published prompt is indexable, so
+  // sitemap eligibility is exactly the single noindex rule
+  // (isIndexablePrompt), not the old broader minor-mention filter.
+  assert.match(sitemapEligibility, /isIndexablePrompt/);
+  assert.match(sitemapEligibility, /&& isIndexablePrompt\(prompt\)/);
+  assert.doesNotMatch(sitemapEligibility, /!containsMinorSubjectReference/);
   assert.doesNotMatch(source, /DEFAULT_LASTMOD|2026-08-25/);
 });
 

@@ -20,11 +20,11 @@ const NewsletterSignup = dynamic(() => import('@/components/NewsletterSignup'), 
 });
 
 const aiTools = [
-  { name: 'ChatGPT', href: '/tools/ai-image-prompts?platform=chatgpt', detail: 'Text and visual concepts', logo: '/chatgpt-logo.svg' },
-  { name: 'Midjourney', href: '/tools/ai-image-prompts?platform=midjourney', detail: 'Cinematic and editorial styles', logo: '/Midjourney-logo.svg' },
-  { name: 'Leonardo AI', href: '/tools/ai-image-prompts?platform=leonardo', detail: 'Realistic portrait generation', logo: '/leonardo_logo.svg' },
-  { name: 'Stable Diffusion', href: '/tools/ai-image-prompts?platform=stable-diffusion', detail: 'Custom style image prompts', logo: '/stable-diffusion-logo.svg' },
-  { name: 'Gemini', href: '/tools/ai-image-prompts?platform=gemini', detail: 'Google AI image prompts', logo: '/gemini-logo.webp' },
+  { name: 'ChatGPT', href: `${PROMPT_BASE_PATH}?q=ChatGPT#prompts`, detail: 'Text and visual concepts', logo: '/chatgpt-logo.svg' },
+  { name: 'Midjourney', href: `${PROMPT_BASE_PATH}?q=Midjourney#prompts`, detail: 'Cinematic and editorial styles', logo: '/Midjourney-logo.svg' },
+  { name: 'Leonardo AI', href: `${PROMPT_BASE_PATH}?q=Leonardo#prompts`, detail: 'Realistic portrait generation', logo: '/leonardo_logo.svg' },
+  { name: 'Stable Diffusion', href: `${PROMPT_BASE_PATH}?q=Stable Diffusion#prompts`, detail: 'Custom style image prompts', logo: '/stable-diffusion-logo.svg' },
+  { name: 'Gemini', href: `${PROMPT_BASE_PATH}?q=Gemini#prompts`, detail: 'Google AI image prompts', logo: '/gemini-logo.webp' },
 ];
 
 const homepageFaqs = [
@@ -256,7 +256,7 @@ export default function HomeLanding({
             <div className="px-1 sm:px-0">
               <SectionHeading title="Fresh AI Image Prompts" description="Discover fresh, ready-to-use prompts for your next AI image." />
             </div>
-            <div className="mt-5 columns-2 gap-2 sm:mt-7 sm:columns-3 sm:gap-3 lg:columns-4 lg:gap-4">
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-7 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 lg:gap-4">
               {freshPrompts.map((prompt) => (
                 <PromptFeedCard
                   key={`fresh-${prompt.slug}`}
@@ -264,6 +264,8 @@ export default function HomeLanding({
                   image={prompt.image || ''}
                   imageAlt={prompt.imageAlt || ''}
                   slug={prompt.slug || ''}
+                  promptText={prompt.prompt || ''}
+                  uniformAspectRatio
                 />
               ))}
             </div>
@@ -296,11 +298,34 @@ export default function HomeLanding({
           </div>
         </section>
 
+        <section aria-labelledby="home-ai-tools-heading" className="bg-white py-10 sm:py-16 dark:bg-[#0a0a0f]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              id="home-ai-tools-heading"
+              title="Browse Prompts by AI Tool"
+              description="Pick your tool to see prompts that work with it."
+            />
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+              {aiTools.map((tool) => (
+                <Link
+                  key={tool.name}
+                  href={tool.href}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[#c2410c] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c] focus-visible:ring-offset-2 dark:border-white/10 dark:bg-[#0a0a0f]"
+                >
+                  <img src={tool.logo} alt={`${tool.name} logo`} loading="lazy" className="h-10 w-10 object-contain" />
+                  <span className="mt-3 block text-sm font-black text-slate-950 dark:text-white">{tool.name}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-300">{tool.detail}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section aria-labelledby="chatgpt-photo-prompts-heading" className="bg-[#fff7f2] py-10 dark:bg-[#111118] sm:py-14">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <SectionHeading
               id="chatgpt-photo-prompts-heading"
-              title="ChatGPT photo prompt guides"
+              title="ChatGPT Photo Prompt Guides"
               description="Explore practical photo prompts, outfit edits, and image-editing ideas."
             />
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -345,7 +370,7 @@ export default function HomeLanding({
           </div>
         </section>
 
-        <section className="bg-white py-10 sm:py-16 dark:bg-[#0a0a0f]">
+        <section className="bg-white py-8 sm:py-10 dark:bg-[#0a0a0f]">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <SectionHeading title="Learn Better AI Image Prompting" description="Practical guides to help you write, refine, and use image prompts." actionHref="/blog" actionLabel="View all guides" />
             <div className="mt-6 grid gap-5 md:grid-cols-3">
@@ -353,8 +378,8 @@ export default function HomeLanding({
                 <Link key={guide.title} href={guide.href} className="group overflow-hidden rounded-[1.5rem] border border-[#e5e7eb] bg-[#f9fafb] shadow-sm transition hover:-translate-y-1 hover:border-[#ff6b35] hover:shadow-xl dark:border-white/10 dark:bg-[#111118] dark:hover:border-[#ff6b35]/60">
                   {guide.image ? (
                     <>
-                      <div className="relative aspect-video w-full overflow-hidden bg-[#111118]">
-                        <Image src={guide.image} alt="" fill sizes="(max-width: 640px) 92vw, (max-width: 1024px) 45vw, 382px" quality={70} className="object-cover transition duration-500 group-hover:scale-[1.03]" />
+                      <div className="relative w-full overflow-hidden bg-[#111118]">
+                        <Image src={guide.image} alt="" width={1200} height={675} sizes="(max-width: 640px) 92vw, (max-width: 1024px) 45vw, 382px" quality={70} className="h-auto w-full object-contain transition duration-500 group-hover:scale-[1.03]" />
                       </div>
                       <p className="px-6 pt-3 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
                         {guide.mediaDisclosure || AI_GENERATED_DISCLOSURE}

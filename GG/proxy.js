@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-import {
-  ADMIN_SESSION_COOKIE,
-  verifyAdminSessionToken,
-} from './src/lib/admin-session-core.js';
+import { ADMIN_SESSION_COOKIE } from './src/lib/admin-session-core.js';
+import { verifyAdminSessionWithRevocation } from './src/lib/admin-users-db.js';
 
 async function refreshSupabaseConsentSession(request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -51,9 +49,14 @@ export async function proxy(request) {
   const resetParam = request.nextUrl.searchParams.get('reset');
   const shouldResetSession = isLoginRoute
     && (resetParam === '1' || resetParam === 'success');
-  const session = verifyAdminSessionToken(
+  // Session verification is database-backed: the token's sv is compared
+  // against the user's current session_version, so a logout or password
+  // change revokes the token immediately. Fail closed — a database error
+  // yields no session, so the request is redirected to login.
+  const loaded = await verifyAdminSessionWithRevocation(
     request.cookies.get(ADMIN_SESSION_COOKIE)?.value,
   );
+  const session = loaded?.session ?? null;
 
   if (isPublicRoute) {
     // Allow password-reset flow even if user is logged in

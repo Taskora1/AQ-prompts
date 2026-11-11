@@ -4,9 +4,8 @@ import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_MAX_AGE_SECONDS,
   createAdminSessionToken,
-  verifyAdminSessionToken,
 } from './admin-session-core.js';
-import { getAdminUserById } from './admin-users-db.js';
+import { verifyAdminSessionWithRevocation } from './admin-users-db.js';
 
 export async function createAdminSession(user) {
   const cookieStore = await cookies();
@@ -34,14 +33,19 @@ export async function clearAdminSession() {
 
 export async function getAdminSession() {
   const cookieStore = await cookies();
-  return verifyAdminSessionToken(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
+  const loaded = await verifyAdminSessionWithRevocation(
+    cookieStore.get(ADMIN_SESSION_COOKIE)?.value,
+  );
+  // Role and email come from the database (see verifyAdminSessionWithRevocation).
+  return loaded?.session ?? null;
 }
 
 export async function getCurrentAdminUser() {
-  const session = await getAdminSession();
-  if (!session) return null;
-
-  return getAdminUserById(session.userId);
+  const cookieStore = await cookies();
+  const loaded = await verifyAdminSessionWithRevocation(
+    cookieStore.get(ADMIN_SESSION_COOKIE)?.value,
+  );
+  return loaded?.user ?? null;
 }
 
 export async function hasAdminSession() {

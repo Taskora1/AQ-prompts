@@ -114,7 +114,7 @@ test('login route and page report the daily IP-wide limit without an alternate a
   ]);
 
   assert.match(route, /authenticateAdminUserWithDailyIpLimit/);
-  assert.match(route, /x-forwarded-for/);
+  assert.match(route, /getClientIp/);
   assert.match(route, /limited \? 'limited' : 'invalid'/);
   assert.match(page, /Too many incorrect sign-in attempts from this network/);
   assert.doesNotMatch(usersDb, /export async function authenticateAdminUser\(/);

@@ -68,6 +68,12 @@ async function ensurePromptsSchema(db) {
 
   await db.query('CREATE INDEX IF NOT EXISTS prompts_category_idx ON prompts (category)');
   await db.query('CREATE INDEX IF NOT EXISTS prompts_created_at_idx ON prompts (created_at DESC)');
+  // Listing query index: (status, library_type) matches the WHERE prefix and
+  // (created_at DESC NULLS LAST, id DESC) matches the ORDER BY, so the
+  // planner index-scans in order and runs the per-row category LATERAL only
+  // for the returned rows. NULLS LAST matters: without it the index stores
+  // NULLS FIRST and cannot provide the query's ordering.
+  await db.query('CREATE INDEX IF NOT EXISTS prompts_status_library_created_idx ON prompts (status, library_type, created_at DESC NULLS LAST, id DESC)');
 
   await db.query(`
     CREATE OR REPLACE FUNCTION set_prompts_updated_at()

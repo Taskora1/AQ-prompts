@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { createAdminSession } from '@/lib/admin-session';
 import { authenticateAdminUserWithDailyIpLimit } from '@/lib/admin-users-db';
+import { getClientIp } from '@/lib/rate-limit';
 
 function safeNextPath(value) {
   const path = String(value || '');
@@ -26,9 +27,7 @@ export async function POST(request) {
     return loginRedirect(request, 'missing', nextPath);
   }
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')?.trim()
-    || 'unknown';
+  const ip = getClientIp(request);
   const ipFingerprint = crypto.createHash('sha256')
     .update(`${ip}:${process.env.AUTH_SECRET || ''}`)
     .digest('hex');

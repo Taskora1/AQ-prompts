@@ -15,7 +15,7 @@ export function withAspectRatio(promptText, ratio) {
 
   if (hasRatio) return updatedPrompt;
 
-  const cleanPrompt = source.replace(/[,\s]+$/, '');
+  const cleanPrompt = source.replace(/[.,\s!?]+$/, '');
   return cleanPrompt ? `${cleanPrompt}, aspect ratio ${ratio}` : `aspect ratio ${ratio}`;
 }
 

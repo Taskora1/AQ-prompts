@@ -64,12 +64,24 @@ const securityHeaders = [
 // Non-production deploys (Cloudflare Pages preview branches) must not be
 // indexed. CF_PAGES_BRANCH is set by Cloudflare Pages; fall back to the
 // legacy VERCEL_ENV value so the same check still works on Vercel.
+// The production branch is 'cloudflare-migration' (set as the production
+// branch in the Cloudflare Pages project) — 'main'/'production' are the
+// generic production names. Update PRODUCTION_BRANCHES if the production
+// branch ever changes, otherwise the live site gets a noindex header.
+// ENVIRONMENT, when set explicitly, wins over the branch name — same
+// precedence as src/lib/deployment-env.js.
+const PRODUCTION_BRANCHES = new Set(['main', 'production', 'cloudflare-migration']);
+const explicitEnvironment = String(
+  process.env.ENVIRONMENT || process.env.CF_PAGES_ENVIRONMENT || '',
+).trim().toLowerCase();
 const deployBranch = process.env.CF_PAGES_BRANCH
   || (process.env.VERCEL_ENV === 'preview' ? 'preview' : '')
-  || process.env.ENVIRONMENT
   || '';
-const isPreviewDeploy = deployBranch === 'preview'
-  || (deployBranch !== '' && deployBranch !== 'main' && deployBranch !== 'production');
+const isPreviewDeploy = explicitEnvironment === 'preview'
+  || explicitEnvironment === 'development'
+  || (explicitEnvironment !== 'production'
+    && (deployBranch === 'preview'
+      || (deployBranch !== '' && !PRODUCTION_BRANCHES.has(deployBranch))));
 
 if (isPreviewDeploy) {
   securityHeaders.push({
@@ -212,6 +224,11 @@ const nextConfig = {
       {
         source: '/prompts/:promptSlug',
         destination: 'https://www.aqprompts.com/tools/ai-image-prompts/p/:promptSlug',
+        permanent: true,
+      },
+      {
+        source: '/p/:slug',
+        destination: 'https://www.aqprompts.com/tools/ai-image-prompts/p/:slug',
         permanent: true,
       },
       {

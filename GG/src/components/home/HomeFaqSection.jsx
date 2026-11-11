@@ -7,7 +7,7 @@ export default function HomeFaqSection({ items = [] }) {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section className="bg-[#f9fafb] py-16 sm:py-20 dark:bg-[#0a0a0f]">
+    <section className="bg-[#f9fafb] py-10 sm:py-12 dark:bg-[#0a0a0f]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6b35]/10 text-[#c2410c] ring-1 ring-[#ff6b35]/20">

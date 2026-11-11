@@ -10,14 +10,8 @@ import reactPackage from 'react';
 
 import { getPgPool, isBuildPhase } from './db.js';
 import {
-  AUDITED_EXISTING_NOINDEX_PROMPT_SLUGS,
-  CRITICALLY_THIN_PROMPT_SLUGS,
-  GROUP_B_LOW_VALUE_PROMPT_SLUGS,
-  GSC_CLICK_EXCEPTION_PROMPT_SLUGS,
-  REQUESTED_NOINDEX_PROMPT_SLUGS,
-} from './content-indexing-policy.js';
-import {
   getCategoryMatchValues,
+  getPromptCategory,
   isIndexablePrompt,
   PROMPT_CATEGORIES,
   slugifyPrompt,
@@ -44,6 +38,13 @@ let cachedHomepagePromptDataPromise = null;
 let cachedHomepagePromptDataAt = 0;
 function cleanText(value = '') {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+// Escape ILIKE wildcards so % / _ / \ in a search word are matched literally.
+// PostgreSQL's default LIKE escape character is backslash, so no explicit
+// ESCAPE clause is needed.
+function escapeLikePattern(value = '') {
+  return String(value).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
 function cleanPublicPromptText(value = '') {
@@ -81,6 +82,9 @@ function cleanPublicEditorialText(value = '') {
     .trim();
 }
 
+// Retained as a helper (used by verification scripts); since the owner
+// decision of 2026-11-11 it no longer gates any listing, payload or
+// sitemap path. Do not re-apply it as a filter without a new decision.
 export function containsMinorSubjectReference(item = {}) {
   const text = [
     item.title,
@@ -281,7 +285,7 @@ async function queryPromptRows() {
       p.image,
       p.images,
       COALESCE(primary_category.name, p.category) AS category,
-      COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+      COALESCE(JSONB_AGG(c.name ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), p.categories, '[]'::jsonb) AS categories,
       p.use_case AS "useCase",
       p.tags,
       p.faqs,
@@ -289,8 +293,8 @@ async function queryPromptRows() {
       p.status,
       p.primary_category_id AS "primaryCategoryId",
       primary_category.slug AS "primaryCategorySlug",
-      COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds",
-      COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs",
+      COALESCE(JSONB_AGG(c.id ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categoryIds",
+      COALESCE(JSONB_AGG(c.slug ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categorySlugs",
       p.meta_title AS "metaTitle",
       p.meta_description AS "metaDescription",
       p.og_image AS "ogImage",
@@ -314,17 +318,16 @@ async function queryPromptRows() {
     FROM prompts p
     LEFT JOIN categories primary_category
       ON primary_category.id = p.primary_category_id
-    LEFT JOIN LATERAL (
-      SELECT
-        JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-        JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
-        JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
-      FROM prompt_categories pc
-      JOIN categories c ON c.id = pc.category_id
-      WHERE pc.prompt_id = p.id
-    ) assigned_categories ON true
+    -- One aggregate over the junction table instead of a per-row LATERAL:
+    -- 576 LATERAL executions (9.46 ms / 2,562 buffers) vs one GROUP BY
+    -- (4.24 ms / 215 buffers). Same aggregate order (pc.position, c.id)
+    -- and LEFT JOIN semantics; the FILTER keeps an empty category list
+    -- empty instead of [null] (JSONB_AGG includes NULL inputs as nulls).
+    LEFT JOIN prompt_categories pc ON pc.prompt_id = p.id
+    LEFT JOIN categories c ON c.id = pc.category_id
     WHERE p.status = 'published'
       AND p.library_type = 'photo'
+    GROUP BY p.id, primary_category.id
     ORDER BY p.id
   ` });
 
@@ -333,7 +336,14 @@ async function queryPromptRows() {
       suppressUnverifiedMedia: false,
       resolveLegacyMedia: true,
     }))
-    .filter((prompt) => prompt.title && prompt.prompt && !containsMinorSubjectReference(prompt));
+    // Owner decision 2026-11-11: all published prompts are indexable, so
+    // the old containsMinorSubjectReference() filter is removed here. It
+    // dropped every prompt mentioning boy/girl/teen/child anywhere (55 of
+    // the 576 live published photo prompts, 19 of them otherwise
+    // indexable) from the build payload, which also kept them out of
+    // build-time generateStaticParams. Indexability is now governed only
+    // by shouldNoIndexPrompt() / the stored should_noindex column.
+    .filter((prompt) => prompt.title && prompt.prompt);
 
   return prompts.length || !isPreviewEnvironment()
     ? prompts
@@ -349,51 +359,101 @@ async function queryPromptRows() {
  * Keeps prompt (needed for copy) and intro (needed for card descriptions).
  * ~40% smaller payload per row than the full query.
  */
-async function queryPromptRowsSlim({
-  randomLimit = null,
-  categorySlugs = [],
-  search = '',
-  limit = null,
-  offset = 0,
-  includeTotal = false,
-  sort = 'latest',
-  randomSeed = null,
-} = {}) {
-  const db = getPgPool();
+/**
+ * Shared WHERE clause for the slim prompt listing queries (page query +
+ * standalone count). The category condition matches the primary category
+ * slug, or any assigned category slug via a direct EXISTS — so it works in
+ * queries with or without the per-row LATERAL aggregate (the standalone
+ * count and the GROUP BY form don't carry assigned_categories.*).
+ * Returns the conditions plus the positional values in order.
+ */
+function buildSlimPromptConditions({ categorySlugs = [], search = '' } = {}) {
   const values = [];
   const conditions = ["p.status = 'published'", "p.library_type = 'photo'"];
 
   if (categorySlugs.length > 0) {
     values.push(categorySlugs);
     const categoryParam = `$${values.length}`;
+    // Direct EXISTS over the junction table: the same slug set the old
+    // jsonb_array_elements_text() over the LATERAL aggregate matched, but
+    // usable without the LATERAL — and the planner can use the
+    // prompt_categories index instead of expanding a JSON array per row.
     conditions.push(`(
       primary_category.slug = ANY(${categoryParam}::text[])
       OR EXISTS (
         SELECT 1
-        FROM jsonb_array_elements_text(COALESCE(assigned_categories.slugs, '[]'::jsonb)) AS assigned_slug(slug)
-        WHERE assigned_slug.slug = ANY(${categoryParam}::text[])
+        FROM prompt_categories pc_filter
+        JOIN categories c_filter ON c_filter.id = pc_filter.category_id
+        WHERE pc_filter.prompt_id = p.id
+          AND c_filter.slug = ANY(${categoryParam}::text[])
       )
     )`);
   }
 
   if (search) {
-    values.push(`%${search}%`);
-    const searchParam = `$${values.length}`;
-    conditions.push(`(
-      p.title ILIKE ${searchParam}
-      OR p.prompt ILIKE ${searchParam}
-      OR p.use_case ILIKE ${searchParam}
-      OR p.category ILIKE ${searchParam}
-      OR p.tags::text ILIKE ${searchParam}
-      OR p.categories::text ILIKE ${searchParam}
-    )`);
+    // Multi-word search is an AND of per-word matches: each word must appear
+    // in at least one of the searched fields, so "red dress" matches a prompt
+    // with "red" in the title and "dress" in the intro. Single-word search
+    // behaves exactly as before. `intro` is a searched field, like the rest.
+    // `tools` is matched space-stripped as well: the column is JSONB holding
+    // space-stripped concatenations such as "StableDiffusion", so a word is
+    // also compared against REPLACE(p.tools::text, ' ', ''). The word is
+    // stripped of spaces BEFORE escaping, so % / _ / \ in it still match
+    // literally (escaping only adds backslashes, which contain no spaces).
+    const words = cleanText(search).split(/\s+/).filter(Boolean);
+    const wordConditions = words.map((word) => {
+      values.push(`%${escapeLikePattern(word)}%`);
+      const wordParam = `$${values.length}`;
+      values.push(`%${escapeLikePattern(word.replace(/\s+/g, ''))}%`);
+      const strippedWordParam = `$${values.length}`;
+      return `(
+        p.title ILIKE ${wordParam}
+        OR p.prompt ILIKE ${wordParam}
+        OR p.intro ILIKE ${wordParam}
+        OR p.use_case ILIKE ${wordParam}
+        OR p.category ILIKE ${wordParam}
+        OR p.tags::text ILIKE ${wordParam}
+        OR p.categories::text ILIKE ${wordParam}
+        OR REPLACE(p.tools::text, ' ', '') ILIKE ${strippedWordParam}
+      )`;
+    });
+    conditions.push(`(${wordConditions.join(' AND ')})`);
   }
 
+  return { conditions, values };
+}
+
+async function queryPromptRowsSlim({
+  categorySlugs = [],
+  search = '',
+  limit = null,
+  offset = 0,
+  sort = 'latest',
+  randomSeed = null,
+} = {}) {
+  const db = getPgPool();
+  const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
+
+  // The paginated path stays on the per-row LATERAL aggregate: with the
+  // composite index it runs only for the returned rows (~12 executions,
+  // ~0.4 ms), while a GROUP BY would have to aggregate every matching row
+  // before sorting and limiting. Full-table fetches (no limit) use the
+  // GROUP BY form instead: one aggregate over the junction table, ~55%
+  // faster and ~92% fewer buffers than 576 LATERAL executions. Both forms
+  // return identical rows — same aggregate order (pc.position, c.id), same
+  // LEFT JOIN semantics. The FILTER on the GROUP BY aggregates keeps an
+  // empty category list empty instead of [null]: JSONB_AGG includes NULL
+  // inputs as JSON nulls, and a prompt with no categories contributes
+  // exactly one all-NULL joined row.
+  // NOTE: sort=random with a limit still runs the LATERAL for every
+  // matching row before the md5 sort (the planner cannot push LIMIT past
+  // it), so the random pick does NOT go through this function — see
+  // getRandomSlimPrompts, which sorts ids only and fetches the picked rows
+  // by id.
+  const useGroupBy = limit === null;
+
   let orderClause = 'ORDER BY p.id';
-  if (randomLimit) {
-    values.push(randomLimit);
-    orderClause = `ORDER BY RANDOM() LIMIT $${values.length}`;
-  } else if (limit !== null) {
+  if (limit !== null) {
     let orderExpression = 'p.created_at DESC NULLS LAST, p.id DESC';
     if (sort === 'random' && Number.isSafeInteger(randomSeed)) {
       values.push(randomSeed);
@@ -406,7 +466,31 @@ async function queryPromptRowsSlim({
     orderClause = `ORDER BY ${orderExpression} LIMIT ${limitParam} OFFSET ${offsetParam}`;
   }
 
-  const totalColumn = includeTotal ? ', COUNT(*) OVER()::int AS "totalCount"' : '';
+  const categoriesExpr = useGroupBy
+    ? `COALESCE(JSONB_AGG(c.name ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), p.categories, '[]'::jsonb) AS categories`
+    : `COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories`;
+  const categoryIdsExpr = useGroupBy
+    ? `COALESCE(JSONB_AGG(c.id ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categoryIds"`
+    : `COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds"`;
+  const categorySlugsExpr = useGroupBy
+    ? `COALESCE(JSONB_AGG(c.slug ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), '[]'::jsonb) AS "categorySlugs"`
+    : `COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs"`;
+  const categoryJoin = useGroupBy
+    ? `
+    LEFT JOIN prompt_categories pc ON pc.prompt_id = p.id
+    LEFT JOIN categories c ON c.id = pc.category_id`
+    : `
+    LEFT JOIN LATERAL (
+      SELECT
+        JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
+        JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
+        JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
+      FROM prompt_categories pc
+      JOIN categories c ON c.id = pc.category_id
+      WHERE pc.prompt_id = p.id
+    ) assigned_categories ON true`;
+  const groupByClause = useGroupBy ? 'GROUP BY p.id, primary_category.id' : '';
+
   const result = await db.query({ text: `
     SELECT
       p.id,
@@ -417,41 +501,30 @@ async function queryPromptRowsSlim({
       p.images,
       p.image_alt_texts ->> '0' AS "imageAlt",
       COALESCE(primary_category.name, p.category) AS category,
-      COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+      ${categoriesExpr},
       p.use_case AS "useCase",
       p.tags,
       p.status,
       p.primary_category_id AS "primaryCategoryId",
       primary_category.slug AS "primaryCategorySlug",
-      COALESCE(assigned_categories.ids, '[]'::jsonb) AS "categoryIds",
-      COALESCE(assigned_categories.slugs, '[]'::jsonb) AS "categorySlugs",
+      ${categoryIdsExpr},
+      ${categorySlugsExpr},
       p.created_at::text AS "createdAt",
       p.intro,
       p.updated_at::text AS "updatedAt"
-      ${totalColumn}
     FROM prompts p
     LEFT JOIN categories primary_category
       ON primary_category.id = p.primary_category_id
-    LEFT JOIN LATERAL (
-      SELECT
-        JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names,
-        JSONB_AGG(c.id ORDER BY pc.position, c.id) AS ids,
-        JSONB_AGG(c.slug ORDER BY pc.position, c.id) AS slugs
-      FROM prompt_categories pc
-      JOIN categories c ON c.id = pc.category_id
-      WHERE pc.prompt_id = p.id
-    ) assigned_categories ON true
+    ${categoryJoin}
     WHERE ${conditions.join(' AND ')}
+    ${groupByClause}
     ${orderClause}
   `, values });
 
   const prompts = result.rows
-    .map((row) => ({
-      ...normalizePromptSlim(row, {
+    .map((row) => normalizePromptSlim(row, {
       suppressUnverifiedMedia: false,
       resolveLegacyMedia: true,
-      }),
-      totalCount: Number(row.totalCount || 0),
     }))
     .filter((prompt) => prompt.title && prompt.prompt);
 
@@ -461,9 +534,11 @@ async function queryPromptRowsSlim({
     resolveLegacyMedia: true,
   });
   const normalizedSearch = cleanText(search).toLowerCase();
+  const searchWords = normalizedSearch.split(/\s+/).filter(Boolean);
   const searchableText = [
     fallback.title,
     fallback.prompt,
+    fallback.intro,
     fallback.category,
     fallback.useCase,
     ...fallback.tags,
@@ -474,13 +549,36 @@ async function queryPromptRowsSlim({
 
   if (
     !matchesCategory
-    || (normalizedSearch && !searchableText.includes(normalizedSearch))
+    || (searchWords.length > 0 && !searchWords.every((word) => searchableText.includes(word)))
     || (limit !== null && Number(limit) < 1)
   ) {
     return prompts;
   }
 
-  return [{ ...fallback, totalCount: 1 }];
+  return [fallback];
+}
+
+/**
+ * Standalone total for the slim prompt listing, with the exact same filters
+ * as the page query. Runs in parallel with the page query (see
+ * getSlimPromptsPage): the old COUNT(*) OVER() window forced a full scan +
+ * sort + window aggregate over every matching row before LIMIT, which
+ * defeated the composite index on the listing path. No LATERAL join is
+ * needed here — the category condition matches assigned slugs via a direct
+ * EXISTS, and the count selects nothing from the aggregates.
+ */
+async function countSlimPrompts({ categorySlugs = [], search = '' } = {}) {
+  const db = getPgPool();
+  const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
+  const result = await db.query({ text: `
+    SELECT COUNT(*)::int AS "totalCount"
+    FROM prompts p
+    LEFT JOIN categories primary_category
+      ON primary_category.id = p.primary_category_id
+    WHERE ${conditions.join(' AND ')}
+  `, values });
+
+  return Number(result.rows[0]?.totalCount || 0);
 }
 
 async function loadNewsletterWelcomePrompts() {
@@ -539,10 +637,54 @@ export async function getNewsletterWelcomePrompts() {
   return cachedNewsletterWelcomePromptsPromise;
 }
 
-export async function getRandomSlimPrompts(count = 5) {
+/**
+ * Seeded random pick. Sorts ids only by md5(id:seed) — the same seeded
+ * shuffle sort=random uses — then fetches the picked rows by id
+ * (the ids-first pattern from the listing payload). The old
+ * ORDER BY RANDOM() path aggregated all 576 rows with the GROUP BY form
+ * (5.8 ms / 221 buffers), and routing the pick through the paginated
+ * md5-seed query was slower still: the per-row LATERAL aggregate ran for
+ * all 576 rows before the md5 sort (10.4 ms / 2,562 buffers). The ids-only
+ * sort is ~1.2 ms (narrow scan, no TOAST, no junction join) and the row
+ * fetch is one PK lookup + LATERAL per pick. Same selection distribution
+ * as the md5-seed shuffle: a different seed picks a different set.
+ * When no seed is given one is generated server-side, so the weekly cron
+ * (which passes none) still gets a fresh pick each run.
+ */
+export async function getRandomSlimPrompts(count = 5, randomSeed = null) {
   const safeCount = Math.min(Math.max(Number(count) || 5, 1), 20);
-  const rows = await queryPromptRowsSlim({ randomLimit: safeCount });
-  return rows;
+  const seed = Number.isSafeInteger(randomSeed)
+    ? randomSeed
+    : Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+  const { rows } = await getPgPool().query({
+    text: `
+      SELECT p.id
+      FROM prompts p
+      WHERE p.status = 'published'
+        AND p.library_type = 'photo'
+      ORDER BY md5(p.id::text || ':' || $1::text) LIMIT $2
+    `,
+    values: [seed, safeCount],
+  });
+  const ids = rows
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+
+  if (ids.length === 0) {
+    // Preview with an empty database: the old ORDER BY RANDOM() path
+    // injected one synthetic prompt via queryPromptRowsSlim's fallback.
+    if (!isPreviewEnvironment()) return [];
+    const fallback = normalizePromptSlim(PREVIEW_SYNTHETIC_PROMPT, {
+      resolveLegacyMedia: true,
+    });
+    return fallback.title && fallback.prompt ? [fallback] : [];
+  }
+
+  const prompts = await getSlimPromptsByIds(ids);
+  // getSlimPromptsByIds returns rows in unspecified order; restore the
+  // md5-seed order so the pick order is the seeded random order.
+  const byId = new Map(prompts.map((prompt) => [Number(prompt.id), prompt]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
 }
 
 export async function getSlimPromptsPage({
@@ -553,19 +695,34 @@ export async function getSlimPromptsPage({
   sort = 'latest',
   randomSeed = null,
 } = {}) {
-  const prompts = await queryPromptRowsSlim({
-    categorySlugs,
-    search: cleanText(search),
-    limit: Math.min(Math.max(Number(limit) || 12, 1), 1000),
-    offset,
-    includeTotal: true,
-    sort,
-    randomSeed,
-  });
+  const cleanSearch = cleanText(search);
+  // The total comes from a separate count query run in parallel with the
+  // page query. The old COUNT(*) OVER() window rode on a page row, so it
+  // forced a full scan + sort + window aggregate over every matching row
+  // before LIMIT — defeating the composite index on the listing path — and
+  // a beyond-end page reported 0. Both queries are index-driven now; the
+  // count is a cheap aggregate and the page query stops after its rows.
+  const [prompts, totalCount] = await Promise.all([
+    queryPromptRowsSlim({
+      categorySlugs,
+      search: cleanSearch,
+      limit: Math.min(Math.max(Number(limit) || 12, 1), 1000),
+      offset,
+      sort,
+      randomSeed,
+    }),
+    countSlimPrompts({ categorySlugs, search: cleanSearch }),
+  ]);
+
+  // In preview with an empty database the page query injects one synthetic
+  // prompt while the count is 0 — report the injected row, as before.
+  const resolvedTotalCount = totalCount === 0 && prompts.length > 0
+    ? prompts.length
+    : totalCount;
 
   return {
-    prompts: prompts.map(({ totalCount, ...prompt }) => prompt),
-    totalCount: prompts[0]?.totalCount || 0,
+    prompts,
+    totalCount: resolvedTotalCount,
   };
 }
 
@@ -619,6 +776,106 @@ export async function getSlimPromptsByIds(ids = []) {
       resolveLegacyMedia: true,
     }))
     .filter((prompt) => prompt.title && prompt.prompt);
+}
+
+// Legacy slug equivalents, mirroring the listing path (route +
+// getSlimPromptsByCategory): a 'men' prompt also matches 'boys' rows and
+// vice versa, same for 'women' / 'girls'.
+const DETAIL_LEGACY_CATEGORY_SLUGS = {
+  men: 'boys',
+  women: 'girls',
+  boys: 'men',
+  girls: 'women',
+};
+
+// The category slugs the detail page's same-category test can match on:
+// the prompt's primary + assigned slugs plus its derived category
+// (getPromptCategory, from the category names), with legacy equivalents.
+// Same set the detail component builds as promptCategorySlugs.
+function getDetailCategorySlugs(currentPrompt = {}) {
+  const slugs = new Set([
+    currentPrompt.primaryCategorySlug,
+    ...(Array.isArray(currentPrompt.categorySlugs) ? currentPrompt.categorySlugs : []),
+    getPromptCategory(currentPrompt)?.slug,
+  ].filter(Boolean).map((slug) => String(slug).toLowerCase()));
+  for (const slug of [...slugs]) {
+    const legacy = DETAIL_LEGACY_CATEGORY_SLUGS[slug];
+    if (legacy) slugs.add(legacy);
+  }
+  return [...slugs];
+}
+
+/**
+ * Targeted detail-page fetch: the slim prompts the detail page actually
+ * reads — same-category candidates for related prompts, the prompt's manual
+ * related ids, and the configured secret prompt (when set). Replaces the
+ * whole-table getSlimAllPrompts() on the detail page (576 rows, ~1.2 MB)
+ * with ~200 rows on average. The detail component re-applies its own
+ * same-category filter on top, so the fetch only has to be a superset of
+ * what that filter selects — verified against live data: for all 383
+ * indexable prompts the category query returns exactly the component's
+ * same-category set (0 missing, 0 extra), and the manual ids / secret
+ * prompt are fetched by PK so no cross-category manual pick is lost.
+ * Rows are id-ascending, the same order and shape as getSlimAllPrompts().
+ * The current prompt itself is included (as before); the component
+ * excludes it by slug.
+ */
+export async function getSlimPromptsForDetail(currentPrompt = {}) {
+  const categorySlugs = getDetailCategorySlugs(currentPrompt);
+  const manualIds = cleanIdArray(currentPrompt.relatedPromptIds);
+  const configuredSecretSlug = String(process.env.NEXT_PUBLIC_SECRET_PROMPT_SLUG || '').trim();
+  let secretId = null;
+  if (configuredSecretSlug) {
+    const match = (await getAllPromptSlugs())
+      .find((entry) => entry.slug === configuredSecretSlug);
+    if (match?.id) secretId = Number(match.id);
+  }
+
+  // Degenerate case: a prompt with no category slug at all falls back to
+  // the component's name-matching branch, which only the whole table can
+  // satisfy. Does not occur in live data (every published prompt has a
+  // category slug); the fallback keeps the page correct if one appears.
+  if (categorySlugs.length === 0) {
+    return getSlimAllPrompts();
+  }
+
+  if (isBuildPhase()) {
+    // Static generation shares the cached full payload: filter it in
+    // memory with the same real-slug test the runtime query uses, then map
+    // with the getSlimAllPrompts() build shape — no per-page database
+    // round trip. The detail component re-applies its own (derived-slug)
+    // filter on top, and the build set is a subset of the real-slug set
+    // (verified on live data: 0/383 prompts have a build-only candidate),
+    // so the static output is unchanged.
+    const wantedIds = new Set([...manualIds, ...(secretId ? [secretId] : [])]);
+    const slugSet = new Set(categorySlugs);
+    return (await getAllPrompts())
+      .filter((candidate) =>
+        wantedIds.has(Number(candidate.id))
+        || [candidate.primaryCategorySlug, ...(Array.isArray(candidate.categorySlugs) ? candidate.categorySlugs : [])]
+          .filter(Boolean)
+          .some((slug) => slugSet.has(String(slug).toLowerCase())),
+      )
+      .map(mapFullPromptToSlimBuildPrompt);
+  }
+
+  // Runtime: targeted SQL — the category query returns id-ascending slim
+  // rows, the manual ids and the secret prompt come from PK lookups.
+  // Deduped and id-sorted so the component sees the same candidate order
+  // as the whole-table list.
+  const [categoryPrompts, manualPrompts, secretPrompts] = await Promise.all([
+    queryPromptRowsSlim({ categorySlugs }),
+    manualIds.length > 0 ? getSlimPromptsByIds(manualIds) : Promise.resolve([]),
+    secretId ? getSlimPromptsByIds([secretId]) : Promise.resolve([]),
+  ]);
+  const byId = new Map();
+  for (const prompt of [...categoryPrompts, ...manualPrompts, ...secretPrompts]) {
+    if (prompt?.id != null && !byId.has(Number(prompt.id))) {
+      byId.set(Number(prompt.id), prompt);
+    }
+  }
+  return [...byId.values()]
+    .sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
 }
 
 export async function getTrendingPromptsByIds(ids = []) {
@@ -750,14 +1007,13 @@ export async function getPublishedPromptCategorySlugs() {
       WHERE p.status = 'published'
         AND p.library_type = 'photo'
       UNION
-      SELECT jsonb_array_elements_text(COALESCE(cats.slugs, '[]'::jsonb)) AS category_slug
+      -- Direct join over the junction table: the same assigned slugs the
+      -- old per-row aggregate + jsonb_array_elements_text() produced,
+      -- without one aggregate execution per prompt. The outer DISTINCT dedupes.
+      SELECT c.slug AS category_slug
       FROM prompts p
-      LEFT JOIN LATERAL (
-        SELECT JSONB_AGG(c.slug) AS slugs
-        FROM prompt_categories pc
-        JOIN categories c ON c.id = pc.category_id
-        WHERE pc.prompt_id = p.id
-      ) cats ON true
+      JOIN prompt_categories pc ON pc.prompt_id = p.id
+      JOIN categories c ON c.id = pc.category_id
       WHERE p.status = 'published'
         AND p.library_type = 'photo'
     ) category_rows
@@ -892,6 +1148,8 @@ export function clearPromptsCache() {
   cachedPublicPromptDirectoryAt = 0;
   cachedHomepagePromptDataPromise = null;
   cachedHomepagePromptDataAt = 0;
+  cachedSitemapRowsPromise = null;
+  cachedSitemapRowsAt = 0;
   clearPromptSlugsCache();
   clearPromptFeedRowsCache();
   return undefined;
@@ -911,50 +1169,115 @@ export function isSitemapEligiblePrompt(item = {}) {
     ...item,
     category: undefined,
   }, { resolveLegacyMedia: true });
+  // Same rule as the prompt page's own noindex decision (isIndexablePrompt):
+  // the previous containsMinorSubjectReference() check excluded any prompt
+  // mentioning girl/boy/teen/child/children anywhere — even adult-woman
+  // prompts — while the noindex rule only treats girl/boy as a minor signal
+  // when no adult term (woman/man/...) is present. Evaluating the normalized
+  // prompt with isIndexablePrompt keeps the sitemap exactly in step with
+  // what is actually indexed: every indexable published prompt is listed,
+  // and no noindexed prompt is.
+  //
+  // Note: getPublishedPromptSitemapRows no longer calls this — eligibility
+  // is enforced in SQL with the maintained `should_noindex` column (the
+  // stored form of shouldNoIndexPrompt(), recomputed on every
+  // create/update/publish). This function is retained as the code-level
+  // evaluation of the rule (and is asserted on by tests).
   return Boolean(
     prompt.slug
     && prompt.title
     && prompt.prompt
-    && !containsMinorSubjectReference(prompt)
+    && isIndexablePrompt(prompt)
   );
 }
 
-export async function getPublishedPromptSitemapRows() {
+// Sitemap rows are cached (module-level promise, 1h TTL) so sitemap.xml and
+// image-sitemap.xml share one fetch per regeneration window. The sitemap
+// routes themselves revalidate every 24h, so a 1h in-memory TTL adds no
+// meaningful staleness on top of the ISR cache.
+const SITEMAP_ROWS_CACHE_TTL_MS = 60 * 60 * 1000;
+let cachedSitemapRowsPromise = null;
+let cachedSitemapRowsAt = 0;
+
+/**
+ * Slim sitemap query — selects ONLY the columns the sitemap renders
+ * (slug, image, images, dates). The old query fetched the full prompt
+ * text, tags, intro, use_case, og_image and a categories LATERAL aggregate
+ * for all 576 published rows (~2 MB per regeneration, fetched separately
+ * by both sitemap routes); the slim query fetches ~0.15 MB for the 576
+ * eligible rows. Eligibility is the maintained `should_noindex` column
+ * (same stored rule the homepage queries already filter on in SQL).
+ *
+ * The slim rows lose the media-risk context (slug/title/prompt/intro/tags)
+ * that the image filter reads. The only rule that can newly fire on a
+ * reduced context is the ambiguous-minor image-path rule, which needs an
+ * adult term in the context; `hasAdultContext` is computed in SQL from
+ * those same fields (Postgres `\y` is the word boundary, matching the JS
+ * `\b` in the media check) and carried into the context as a synthetic
+ * 'adult' tag, so image filtering matches the old full-context output.
+ */
+async function loadPublishedPromptSitemapRows() {
   const result = await getPgPool().query(`
     SELECT
-      p.title, p.prompt, p.slug, p.image, p.images, p.tags,
-      p.og_image AS "ogImage", p.intro, p.use_case AS "useCase",
-      COALESCE(assigned_categories.names, p.categories, '[]'::jsonb) AS categories,
+      p.slug,
+      p.image,
+      p.images,
       p.created_at::text AS "createdAt",
-      p.updated_at::text AS "updatedAt"
+      p.updated_at::text AS "updatedAt",
+      (
+        p.slug || ' ' || COALESCE(p.title, '') || ' ' || COALESCE(p.prompt, '')
+        || ' ' || COALESCE(p.intro, '') || ' ' || COALESCE(p.tags::text, '')
+      ) ~* '\\y(adult|woman|women|man|men|businessman|bride|groom)\\y' AS "hasAdultContext"
     FROM prompts p
-    LEFT JOIN LATERAL (
-      SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id) AS names
-      FROM prompt_categories pc
-      JOIN categories c ON c.id = pc.category_id
-      WHERE pc.prompt_id = p.id
-    ) assigned_categories ON true
     WHERE p.status = 'published'
       AND p.library_type = 'photo'
+      AND COALESCE(p.should_noindex, false) = false
+      AND NULLIF(BTRIM(p.slug), '') IS NOT NULL
       AND NULLIF(BTRIM(p.title), '') IS NOT NULL
       AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
     ORDER BY p.id
   `);
 
-  return result.rows
-    .filter(isSitemapEligiblePrompt)
-    .map((row) => {
-      const prompt = normalizePrompt(row, {
+  return result.rows.map((row) => {
+    const prompt = normalizePrompt(
+      {
+        ...row,
+        // Synthetic adult marker for the media-risk context (see above):
+        // normalizePrompt reads tags into the media context, and the
+        // sitemap mapper uses nothing else from tags.
+        tags: row.hasAdultContext ? ['adult'] : [],
+      },
+      {
         suppressUnverifiedMedia: true,
         resolveLegacyMedia: true,
-      });
-      return {
-        slug: prompt.slug,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        images: prompt.images,
-      };
+      },
+    );
+    return {
+      slug: prompt.slug,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      images: prompt.images,
+    };
+  });
+}
+
+export async function getPublishedPromptSitemapRows() {
+  const now = Date.now();
+  if (
+    cachedSitemapRowsPromise
+    && now - cachedSitemapRowsAt < SITEMAP_ROWS_CACHE_TTL_MS
+  ) {
+    return cachedSitemapRowsPromise;
+  }
+
+  cachedSitemapRowsAt = now;
+  cachedSitemapRowsPromise = loadPublishedPromptSitemapRows()
+    .catch((error) => {
+      cachedSitemapRowsPromise = null;
+      cachedSitemapRowsAt = 0;
+      throw error;
     });
+  return cachedSitemapRowsPromise;
 }
 
 // ── Slim payload (listing pages — no large text fields) ──────────────
@@ -975,19 +1298,17 @@ let cachedPromptFeedRowsAt = 0;
 const PROMPT_LISTING_SCHEMA_LIMIT = 24;
 const HOMEPAGE_PROMPT_CARD_LIMIT = 12;
 const HOMEPAGE_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
-const GSC_CLICK_EXCEPTION_SLUGS = new Set(GSC_CLICK_EXCEPTION_PROMPT_SLUGS);
-const HOMEPAGE_NOINDEX_SLUGS = [...new Set([
-  ...AUDITED_EXISTING_NOINDEX_PROMPT_SLUGS,
-  ...GROUP_B_LOW_VALUE_PROMPT_SLUGS.filter((slug) => !GSC_CLICK_EXCEPTION_SLUGS.has(slug)),
-  ...CRITICALLY_THIN_PROMPT_SLUGS.filter((slug) => !GSC_CLICK_EXCEPTION_SLUGS.has(slug)),
-  ...REQUESTED_NOINDEX_PROMPT_SLUGS.filter((slug) => !GSC_CLICK_EXCEPTION_SLUGS.has(slug)),
-])];
-const HOMEPAGE_INDEXABILITY_FILTER_SQL = `
-  AND NOT (
-    LOWER(CONCAT_WS(' ', p.slug, p.title, p.tags::text)) ~* '(^|[^[:alnum:]_])(boy|girl)([^[:alnum:]_]|$)'
-    AND LOWER(CONCAT_WS(' ', p.slug, p.title, p.tags::text)) !~* '(^|[^[:alnum:]_])(adult|woman|women|man|men|businessman|bride|groom)([^[:alnum:]_]|$)'
-  )
-`;
+// Owner decision 2026-11-11: all published prompts are indexable, so the
+// homepage card/category queries no longer exclude the September 2026
+// noindex slug lists. The lists stay in content-indexing-policy.js as
+// audit history only. Kept as an (empty) constant so the $2 query param
+// and the `p.slug <> ALL($2::text[])` clause keep working unchanged.
+const HOMEPAGE_NOINDEX_SLUGS = [];
+// Owner decision 2026-11-11: the old ambiguous-minor SQL filter
+// (boy/girl without an adult term) is retired with the rest of the
+// noindex rule. Kept as an empty fragment so the interpolations in the
+// homepage card/category queries stay valid.
+const HOMEPAGE_INDEXABILITY_FILTER_SQL = ``;
 const HOMEPAGE_CATEGORY_IMAGE_PROMPT_TITLES = {
   men: 'Sharp Street Style Portrait in All-Black Modern Look',
   couples: 'Couple Portrait in Black Outfits with Watercolor Splatter Art',
@@ -1005,6 +1326,7 @@ async function queryHomepagePromptCards() {
           p.id,
           p.title,
           p.slug,
+          p.prompt,
           COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
           p.image_alt_texts ->> '0' AS "imageAlt",
           p.tags,
@@ -1174,6 +1496,7 @@ async function loadHomepagePromptData() {
         id: Number(row.id) || null,
         title: cleanPublicPromptText(row.title),
         slug: cleanText(row.slug),
+        prompt: cleanPublicPromptText(row.prompt),
         image,
         imageAlt: cleanText(row.imageAlt),
         tags: cleanArray(row.tags),
@@ -1276,35 +1599,47 @@ export async function getSlimPromptsPayload() {
 
 async function loadPromptListingPagePayload() {
   const result = await getPgPool().query(`
-    WITH eligible_rows AS (
-      SELECT
-        p.id,
-        p.title,
-        p.slug,
-        COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
-        p.image_alt_texts ->> '0' AS "imageAlt"
+    -- Ids first, then full text for those 24 only. The old CTE
+    -- materialized all 576 rows WITH prompt text (TOAST reads) and only
+    -- then took 24 (6.9 ms / 1,893 buffers). The ids CTE is index-driven
+    -- (ORDER BY id DESC LIMIT 24) and the text join touches 24 rows.
+    -- octet_length() is exactly equivalent to the old BTRIM check here:
+    -- 0 published photo prompts have an empty (or whitespace-only) title
+    -- or prompt, and octet_length() does NOT detoast, so the ids scan and
+    -- the count stay cheap. The BTRIM check still runs on the 24 rows.
+    WITH eligible_ids AS (
+      SELECT p.id
       FROM prompts p
       WHERE p.status = 'published'
         AND p.library_type = 'photo'
-        AND NULLIF(BTRIM(p.title), '') IS NOT NULL
-        AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
-    ),
-    page_rows AS (
-      SELECT id, title, slug, image, "imageAlt"
-      FROM eligible_rows
-      ORDER BY id DESC
+        AND octet_length(p.title) > 0
+        AND octet_length(p.prompt) > 0
+      ORDER BY p.id DESC
       LIMIT $1
+    ),
+    totals AS (
+      SELECT COUNT(*)::int AS total_count
+      FROM prompts p
+      WHERE p.status = 'published'
+        AND p.library_type = 'photo'
+        AND octet_length(p.title) > 0
+        AND octet_length(p.prompt) > 0
     )
     SELECT
-      page_rows.id,
-      page_rows.title,
-      page_rows.slug,
-      page_rows.image,
-      page_rows."imageAlt",
+      p.id,
+      p.title,
+      p.slug,
+      p.prompt,
+      COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
+      p.image_alt_texts ->> '0' AS "imageAlt",
       totals.total_count AS "totalCount"
-    FROM (SELECT COUNT(*)::int AS total_count FROM eligible_rows) totals
-    LEFT JOIN page_rows ON true
-    ORDER BY page_rows.id ASC NULLS LAST
+    FROM eligible_ids
+    JOIN prompts p ON p.id = eligible_ids.id
+    CROSS JOIN totals
+    WHERE NULLIF(BTRIM(p.title), '') IS NOT NULL
+      AND NULLIF(BTRIM(p.prompt), '') IS NOT NULL
+    -- Newest first, direct: PromptListingPage no longer reverses its input.
+    ORDER BY p.id DESC
   `, [PROMPT_LISTING_SCHEMA_LIMIT]);
 
   let prompts = result.rows
@@ -1315,6 +1650,7 @@ async function loadPromptListingPagePayload() {
         id: prompt.id,
         title: prompt.title,
         slug: prompt.slug,
+        prompt: prompt.prompt,
         image: prompt.image,
         imageAlt: prompt.imageAlt || prompt.imageAltTexts?.['0'] || prompt.title,
       };
@@ -1442,26 +1778,35 @@ export async function getPublicPromptDirectoryPayload() {
   return cachedPublicPromptDirectoryPromise;
 }
 
+// Build-phase slim shape for a full prompt. Single source of truth for the
+// mapping getSlimAllPrompts() applies in build workers — the detail-page
+// targeted fetch (getSlimPromptsForDetail) maps identically. Note the shape
+// deliberately drops primaryCategorySlug / categorySlugs / prompt /
+// isSecretPrompt, matching the old inline mapping.
+function mapFullPromptToSlimBuildPrompt(prompt) {
+  return {
+    id: prompt.id,
+    title: prompt.title,
+    slug: prompt.slug,
+    image: prompt.image,
+    images: prompt.images,
+    category: prompt.category,
+    categories: prompt.categories,
+    useCase: prompt.useCase,
+    tags: prompt.tags,
+    status: prompt.status,
+    intro: prompt.intro,
+    imageAlt: prompt.imageAlt || prompt.imageAltTexts?.['0'] || prompt.title,
+    createdAt: prompt.createdAt,
+    updatedAt: prompt.updatedAt,
+    shouldNoindex: prompt.shouldNoindex,
+  };
+}
+
 export async function getSlimAllPrompts() {
   if (isBuildPhase()) {
     const prompts = await getAllPrompts();
-    return prompts.map((prompt) => ({
-      id: prompt.id,
-      title: prompt.title,
-      slug: prompt.slug,
-      image: prompt.image,
-      images: prompt.images,
-      category: prompt.category,
-      categories: prompt.categories,
-      useCase: prompt.useCase,
-      tags: prompt.tags,
-      status: prompt.status,
-      intro: prompt.intro,
-      imageAlt: prompt.imageAlt || prompt.imageAltTexts?.['0'] || prompt.title,
-      createdAt: prompt.createdAt,
-      updatedAt: prompt.updatedAt,
-      shouldNoindex: prompt.shouldNoindex,
-    }));
+    return prompts.map(mapFullPromptToSlimBuildPrompt);
   }
   return (await getSlimPromptsPayload()).prompts;
 }

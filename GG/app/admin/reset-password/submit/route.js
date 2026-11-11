@@ -16,8 +16,26 @@ const MAX_PASSWORD_LENGTH = 200;
  * Verify a session token from the OTP verification step.
  * Format: base64url(payload).base64url(hmac)
  * Payload contains { tid, uid, exp }
+ *
+ * Fail closed: AUTH_SECRET must be set to a random value of at least 32
+ * characters (same rule as admin-session-core.js). There is deliberately
+ * no fallback secret — a known fallback would let anyone forge a session
+ * token and skip the OTP step. The check runs before the try/catch below
+ * so a missing secret throws instead of being swallowed as "invalid token".
  */
+function getSigningSecret() {
+  const secret = process.env.AUTH_SECRET;
+
+  if (!secret || secret.length < 32) {
+    throw new Error('AUTH_SECRET must be set to a random value of at least 32 characters.');
+  }
+
+  return secret;
+}
+
 function verifySessionToken(token) {
+  const secret = getSigningSecret();
+
   try {
     const [encodedPayload, signature] = token.split('.');
     if (!encodedPayload || !signature) return null;
@@ -26,7 +44,7 @@ function verifySessionToken(token) {
     if (!payload.tid || !payload.uid || !payload.exp) return null;
     if (Date.now() > payload.exp) return null;
 
-    const expected = crypto.createHmac('sha256', process.env.AUTH_SECRET || 'fallback')
+    const expected = crypto.createHmac('sha256', secret)
       .update(JSON.stringify({ tid: payload.tid, uid: payload.uid, exp: payload.exp }))
       .digest('base64url');
 
@@ -112,52 +130,48 @@ export async function POST(request) {
 
   try {
     const pool = getPgPool();
-    log('Acquiring database connection...');
-    const client = await pool.connect();
-    log('Database connection acquired');
 
-    try {
-      log('Starting transaction...');
-      await client.query('BEGIN');
-      log('Transaction started');
+    // Hash new password
+    log('Hashing password...');
+    const passwordHash = await hashAdminPassword(password);
+    log('Password hashed successfully');
 
-      // Hash new password
-      log('Hashing password...');
-      const passwordHash = await hashAdminPassword(password);
-      log('Password hashed successfully');
+    // Update the password, bump the session version, and invalidate the
+    // user's reset tokens in one atomic statement. The Neon HTTP driver
+    // treats BEGIN/COMMIT as no-ops, so the previous two-statement
+    // "transaction" could leave the password changed while the tokens
+    // stayed valid if the second write failed; a data-modifying CTE
+    // keeps all writes in a single statement instead. Bumping
+    // session_version revokes every session token issued before this
+    // reset, so a password change logs the user out everywhere.
+    log('Updating password in database for user_id=%d and invalidating reset tokens...', userId);
+    const updateResult = await pool.query(
+      `
+        WITH updated_user AS (
+          UPDATE users
+          SET password_hash = $1,
+              session_version = session_version + 1
+          WHERE id = $2
+          RETURNING id
+        ),
+        invalidated_tokens AS (
+          UPDATE password_reset_tokens
+          SET used_at = NOW()
+          WHERE user_id IN (SELECT id FROM updated_user)
+            AND used_at IS NULL
+          RETURNING id
+        )
+        SELECT
+          (SELECT id FROM updated_user) AS user_id,
+          (SELECT COUNT(*)::int FROM invalidated_tokens) AS tokens_invalidated
+      `,
+      [passwordHash, userId],
+    );
 
-      // Update password in users table
-      log('Updating password in database for user_id=%d...', userId);
-      const updateResult = await client.query(
-        'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id',
-        [passwordHash, userId],
-      );
-      log('Password updated — rows affected: %d', updateResult.rowCount);
-
-      if (updateResult.rowCount === 0) {
-        log('WARNING: No user row updated for user_id=%d — user may not exist', userId);
-      }
-
-      // Invalidate ALL existing password reset tokens for this user
-      // IMPORTANT: Must use client.query() (same connection) to avoid deadlock
-      // with the row lock held by this transaction.
-      log('Invalidating password reset tokens for user_id=%d...', userId);
-      await client.query(
-        'UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
-        [userId],
-      );
-      log('Password reset tokens invalidated');
-
-      log('Committing transaction...');
-      await client.query('COMMIT');
-      log('Transaction committed');
-    } catch (error) {
-      log('Transaction error — rolling back: %s', error.message || error);
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-      log('Database connection released');
+    if (updateResult.rows[0]?.user_id == null) {
+      log('WARNING: No user row updated for user_id=%d — user may not exist', userId);
+    } else {
+      log('Password updated — reset tokens invalidated: %d', updateResult.rows[0].tokens_invalidated);
     }
 
     log('Password updated successfully for user_id=%d', userId);

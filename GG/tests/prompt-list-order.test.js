@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
+import { after, before, beforeEach, test } from 'node:test';
 
 import { getDatabaseUrl, isBuildPhase } from '../src/lib/db.js';
 import { getSlimPromptsPage } from '../src/lib/prompts-db.js';
@@ -41,14 +41,22 @@ after(() => {
   else globalThis.__dbPgPool = originalPool;
 });
 
+beforeEach(() => {
+  queries.length = 0;
+});
+
 test('random prompt listing uses stable seeded ordering for pagination', async () => {
   await getSlimPromptsPage({ limit: 12, offset: 12, sort: 'random', randomSeed: 48291 });
 
-  assert.match(queries.at(-1), /ORDER BY md5\(p\.id::text \|\| ':' \|\| \$1::text\) LIMIT \$2 OFFSET \$3/);
+  // getSlimPromptsPage issues two queries in parallel (page + count), so
+  // the page query is the one carrying the ORDER BY, not the last query.
+  const pageSql = queries.find((sql) => /ORDER BY/.test(sql));
+  assert.match(pageSql, /ORDER BY md5\(p\.id::text \|\| ':' \|\| \$1::text\) LIMIT \$2 OFFSET \$3/);
 });
 
 test('latest prompt listing orders by publication date with an ID tie-breaker', async () => {
   await getSlimPromptsPage({ limit: 12, sort: 'latest' });
 
-  assert.match(queries.at(-1), /ORDER BY p\.created_at DESC NULLS LAST, p\.id DESC LIMIT \$1 OFFSET \$2/);
+  const pageSql = queries.find((sql) => /ORDER BY/.test(sql));
+  assert.match(pageSql, /ORDER BY p\.created_at DESC NULLS LAST, p\.id DESC LIMIT \$1 OFFSET \$2/);
 });

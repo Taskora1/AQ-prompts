@@ -10,11 +10,20 @@ function hashKeyPart(value = '') {
 }
 
 export function getClientIp(request) {
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  const realIp = request.headers.get('x-real-ip');
-  const firstForwardedIp = forwardedFor?.split(',')[0]?.trim();
+  // Cloudflare sets CF-Connecting-IP to the real client IP; prefer it.
+  // X-Forwarded-For is client-controlled at its first hop, so the first
+  // entry is spoofable — only the last entry (appended by our own edge
+  // proxy) is trustworthy. x-real-ip is the final fallback; Next.js
+  // route handlers expose no direct socket remote address.
+  const connectingIp = request.headers.get('cf-connecting-ip')?.trim();
+  if (connectingIp) return connectingIp;
 
-  return firstForwardedIp || realIp?.trim() || 'unknown';
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedIps = forwardedFor?.split(',').map((ip) => ip.trim()).filter(Boolean) || [];
+  const lastForwardedIp = forwardedIps[forwardedIps.length - 1];
+  if (lastForwardedIp) return lastForwardedIp;
+
+  return request.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
 export function rateLimitResponse(message = 'Please slow down and try again shortly.') {

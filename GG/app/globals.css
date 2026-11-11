@@ -119,8 +119,8 @@ select {
   --bg-card: #f9fafb;
   --bg-card-dark: #111118;
   --text-primary: #111118;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+  --text-secondary: #374151;
+  --text-muted: #52525b;
   --border-color: #e5e7eb;
   --accent-color: #ff6b35;
   --badge-bg: #ff6b3520;
@@ -166,8 +166,8 @@ select {
   --bg-card: #171820;
   --bg-card-dark: #171820;
   --text-primary: #ffffff;
-  --text-secondary: #b0b6c4;
-  --text-muted: #8991a1;
+  --text-secondary: #c3c8d4;
+  --text-muted: #a3aab8;
   --border-color: #ffffff14;
   --accent-color: #ff6b35;
   --badge-bg: #ff6b3520;
@@ -2071,4 +2071,12 @@ body.has-sticky-bottom-ad {
 
 .admin-nav-scroll::-webkit-scrollbar {
   display: none;
+}
+
+/* Hide the Webpushr persistent subscription bell pill (bottom-left). The
+   push opt-in prompt itself still appears (after engagement), so visitors
+   can still subscribe — the bell is redundant and competes with the
+   WhatsApp pill. */
+#webpushr-bell-optin {
+  display: none !important;
 }

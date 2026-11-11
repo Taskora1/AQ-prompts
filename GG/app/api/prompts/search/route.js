@@ -7,25 +7,45 @@ import { getSlimPromptsPage } from '@/lib/prompts';
 // CDN headers (cache key includes the full URL incl. query params).
 export const dynamic = 'force-dynamic';
 
-const MAX_RESULTS = 18; // matches the previous client-side cap
+const DEFAULT_PAGE_SIZE = 18; // matches the previous client-side cap
+const MAX_PAGE_SIZE = 36; // same cap as the prompts/page route
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get('q') || '').trim();
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const requestedPageSize = Number(searchParams.get('pageSize')) || DEFAULT_PAGE_SIZE;
+    const pageSize = Math.min(Math.max(1, requestedPageSize), MAX_PAGE_SIZE);
     if (!search) {
-      return NextResponse.json({ success: true, results: [] });
+      return NextResponse.json({
+        success: true,
+        results: [],
+        page,
+        pageSize,
+        totalCount: 0,
+        hasMore: false,
+      });
     }
 
-    const { prompts } = await getSlimPromptsPage({
+    const offset = (page - 1) * pageSize;
+    const { prompts, totalCount } = await getSlimPromptsPage({
       search,
-      limit: MAX_RESULTS,
+      limit: pageSize,
+      offset,
     });
     const results = prompts
       .map(toPromptCardItem);
 
     return NextResponse.json(
-      { success: true, results },
+      {
+        success: true,
+        results,
+        page,
+        pageSize,
+        totalCount,
+        hasMore: offset + pageSize < totalCount,
+      },
       {
         headers: {
           'Cache-Control': 'public, max-age=60, s-maxage=86400, stale-while-revalidate=86400',

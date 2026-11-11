@@ -60,16 +60,19 @@ export async function submitSiteReview({
   userAgent = '',
 }) {
   const pool = getPgPool();
-  const client = await pool.connect();
 
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      [`site-review-profile:${socialUrl.toLowerCase()}`],
-    );
-    const duplicateResult = await client.query(
-      `
+  // The duplicate check and the per-IP rate-limit check are folded into
+  // the INSERT itself, so the whole submission is one atomic statement.
+  // The previous BEGIN + pg_advisory_xact_lock + COMMIT offered no
+  // protection on the Neon HTTP driver (see src/lib/db.js: BEGIN/COMMIT
+  // and advisory locks are no-ops there), so two concurrent submissions
+  // could both pass the SELECT checks and both insert.
+  const result = await pool.query(
+    `
+      INSERT INTO public.site_reviews
+        (name, social_url, rating, review_text, status, source, prompt_id, ip_hash, user_agent)
+      SELECT $1, $2, $3, $4, 'pending', $5, $6, $7, $8
+      WHERE NOT EXISTS (
         SELECT 1
         FROM public.site_reviews
         WHERE status IN ('pending', 'approved')
@@ -82,52 +85,50 @@ export async function submitSiteReview({
             ),
             '/+$',
             ''
-          )) = lower($1)
-        LIMIT 1
-      `,
-      [socialUrl],
-    );
-    if (duplicateResult.rows.length) {
-      await client.query('COMMIT');
-      return { duplicate: true, limited: false, review: null };
-    }
-
-    await client.query(
-      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      [`site-review:${ipHash}`],
-    );
-    const countResult = await client.query(
-      `
-        SELECT COUNT(*)::int AS attempts
+          )) = lower($2)
+      )
+      AND (
+        SELECT COUNT(*)::int
         FROM public.site_reviews
-        WHERE ip_hash = $1
+        WHERE ip_hash = $7
           AND created_at > NOW() - INTERVAL '${REVIEW_SUBMISSION_WINDOW_HOURS} hours'
-      `,
-      [ipHash],
-    );
-    if (Number(countResult.rows[0]?.attempts || 0) >= REVIEW_SUBMISSION_LIMIT) {
-      await client.query('COMMIT');
-      return { limited: true, review: null };
-    }
+      ) < $9
+      RETURNING id, name, social_url, rating, review_text, status, source, prompt_id,
+        created_at::text AS created_at
+    `,
+    [name, socialUrl, rating, text, source, promptId, ipHash, userAgent, REVIEW_SUBMISSION_LIMIT],
+  );
 
-    const result = await client.query(
-      `
-        INSERT INTO public.site_reviews
-          (name, social_url, rating, review_text, status, source, prompt_id, ip_hash, user_agent)
-        VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
-        RETURNING id, name, social_url, rating, review_text, status, source, prompt_id,
-          created_at::text AS created_at
-      `,
-      [name, socialUrl, rating, text, source, promptId, ipHash, userAgent],
-    );
-    await client.query('COMMIT');
+  if (result.rows[0]) {
     return { limited: false, review: mapReview(result.rows[0], { includeProfile: true }) };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
   }
+
+  // The insert was rejected by one of the two checks above. These reads
+  // only classify the rejection — the decision itself was already atomic.
+  const duplicateResult = await pool.query(
+    `
+      SELECT 1
+      FROM public.site_reviews
+      WHERE status IN ('pending', 'approved')
+        AND lower(regexp_replace(
+          regexp_replace(
+            split_part(split_part(btrim(social_url), '#', 1), '?', 1),
+            '^https://www[.]',
+            'https://',
+            'i'
+          ),
+          '/+$',
+          ''
+        )) = lower($1)
+      LIMIT 1
+    `,
+    [socialUrl],
+  );
+  if (duplicateResult.rows.length) {
+    return { duplicate: true, limited: false, review: null };
+  }
+
+  return { limited: true, review: null };
 }
 
 export async function getApprovedSiteReviewData({ page = 1 } = {}) {

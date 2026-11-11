@@ -48,7 +48,7 @@ function photoInput(overrides = {}) {
 }
 
 function mockResultFor(sql, values = []) {
-  if (/WITH eligible_rows AS/i.test(sql)) {
+  if (/WITH eligible_ids AS/i.test(sql)) {
     assert.equal(values[0], 24);
     return {
       rows: [
@@ -82,35 +82,16 @@ function mockResultFor(sql, values = []) {
   if (/SELECT MAX\(p\.updated_at\)::text AS "updatedAt"/i.test(sql)) {
     return { rows: [{ updatedAt: '2026-10-20 17:15:44.967863+00' }] };
   }
-  if (/SELECT\s+p\.title,\s*p\.prompt,\s*p\.slug/i.test(sql) && /p\.updated_at::text AS "updatedAt"/i.test(sql)) {
+  if (/p\.updated_at::text AS "updatedAt"/i.test(sql) && /hasAdultContext/i.test(sql)) {
     return {
       rows: [
         {
-          title: 'Fresh editorial portrait',
-          prompt: 'Create a polished editorial portrait in a city setting.',
           slug: 'fresh-editorial-portrait',
           image: promptImage,
           images: [promptImage],
-          tags: [],
-          ogImage: '',
-          intro: '',
-          useCase: '',
-          categories: ['Writing'],
           createdAt: '2026-06-07',
           updatedAt: '2026-10-20 17:15:44.967863+00',
-        },
-        {
-          title: 'Teen portrait',
-          prompt: 'Create a portrait of a teenager in a city setting.',
-          slug: 'teen-portrait',
-          image: promptImage,
-          images: [promptImage],
-          tags: [],
-          ogImage: '',
-          intro: '',
-          useCase: '',
-          categories: ['Writing'],
-          updatedAt: '2026-10-20 17:15:44.967863+00',
+          hasAdultContext: true,
         },
       ],
     };
@@ -433,8 +414,9 @@ test('Photo admin listing applies category filters and a validated sort order', 
 });
 
 test('Sitemap prompt rows include complete published prompts while retaining safety filtering', async () => {
+  clearPromptsCache();
   const rows = await getPublishedPromptSitemapRows();
-  const query = queries.find(({ sql }) => /p\.updated_at::text AS "updatedAt"/i.test(sql));
+  const query = queries.find(({ sql }) => /p\.updated_at::text AS "updatedAt"/i.test(sql) && /hasAdultContext/i.test(sql));
 
   assert.match(query.sql, /p\.status = 'published'/);
   assert.match(query.sql, /p\.library_type = 'photo'/);
@@ -442,8 +424,12 @@ test('Sitemap prompt rows include complete published prompts while retaining saf
   assert.match(query.sql, /p\.created_at::text AS "createdAt"/);
   assert.match(query.sql, /NULLIF\(BTRIM\(p\.title\), ''\) IS NOT NULL/);
   assert.match(query.sql, /NULLIF\(BTRIM\(p\.prompt\), ''\) IS NOT NULL/);
-  assert.match(query.sql, /SELECT\s+p\.title,\s*p\.prompt,\s*p\.slug/i);
-  assert.match(query.sql, /LEFT JOIN LATERAL/);
+  // Slim SELECT: only the columns the sitemap routes render, no full prompt text.
+  assert.match(query.sql, /SELECT\s+p\.slug,\s*p\.image,\s*p\.images,\s*p\.created_at::text AS "createdAt",\s*p\.updated_at::text AS "updatedAt",/i);
+  assert.doesNotMatch(query.sql, /p\.title AS |p\.prompt AS |p\.tags AS |p\.intro AS |p\.use_case AS |p\.og_image AS /i);
+  assert.doesNotMatch(query.sql, /LEFT JOIN LATERAL/);
+  // Eligibility is enforced in SQL via the maintained should_noindex column.
+  assert.match(query.sql, /COALESCE\(p\.should_noindex, false\) = false/);
   assert.deepEqual(rows, [{
     slug: 'fresh-editorial-portrait',
     createdAt: '2026-06-07',
@@ -451,10 +437,12 @@ test('Sitemap prompt rows include complete published prompts while retaining saf
     images: [promptImage],
   }]);
 
-  await getPublishedPromptSitemapRows();
+  // Second call is served from the shared sitemap cache: no second query.
+  const cachedRows = await getPublishedPromptSitemapRows();
+  assert.deepEqual(cachedRows, rows);
   assert.equal(
-    queries.filter(({ sql }) => /p\.updated_at::text AS "updatedAt"/i.test(sql)).length,
-    2,
+    queries.filter(({ sql }) => /p\.updated_at::text AS "updatedAt"/i.test(sql) && /hasAdultContext/i.test(sql)).length,
+    1,
   );
 });
 
@@ -480,13 +468,16 @@ test('public prompt directory selects and returns only its serialized fields', a
   test('main Photo listing reads only the 24 displayed/schema rows and counts separately in SQL', async () => {
     clearSlimPromptsCache();
     const payload = await getPromptListingPagePayload();
-    const query = queries.find(({ sql }) => /WITH eligible_rows AS/i.test(sql));
+    const query = queries.find(({ sql }) => /WITH eligible_ids AS/i.test(sql));
 
     assert.match(query.sql, /NULLIF\(BTRIM\(p\.title\), ''\) IS NOT NULL/i);
     assert.match(query.sql, /NULLIF\(BTRIM\(p\.prompt\), ''\) IS NOT NULL/i);
-    assert.match(query.sql, /ORDER BY id DESC\s+LIMIT \$1/i);
+    assert.match(query.sql, /ORDER BY p\.id DESC\s+LIMIT \$1/i);
     assert.match(query.sql, /COUNT\(\*\)::int AS total_count/i);
-    assert.doesNotMatch(query.sql, /SELECT[\s\S]*p\.prompt\s*,|p\.tags|p\.images\s*,|p\.intro/i);
+    // The payload returns prompt text (the Copy button needs it), so
+    // p.prompt IS selected; the heavy unneeded columns are not.
+    assert.match(query.sql, /SELECT[\s\S]*p\.prompt,/i);
+    assert.doesNotMatch(query.sql, /p\.tags|p\.images\s*,|p\.intro/i);
     assert.equal(payload.totalCount, 30);
     assert.deepEqual(payload.prompts.map(({ id }) => id), [29, 30]);
     clearSlimPromptsCache();

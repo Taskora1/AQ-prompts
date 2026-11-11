@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Bookmark, Copy, Eye } from 'lucide-react';
 
 import { isFavoritePrompt, toggleFavoritePrompt } from '@/lib/favorites';
+import SaveConsentNotice from '@/components/SaveConsentNotice';
 
 const EMPTY_STATS = { views: 0, likes: 0, copies: 0, ratingSum: 0, ratingCount: 0, avgRating: 0 };
 
@@ -55,6 +56,7 @@ export default function PromptEngagementBar({
 }) {
   const [stats, setStats] = useState(initialStats || EMPTY_STATS);
   const [saved, setSaved] = useState(false);
+  const [showSaveConsentNotice, setShowSaveConsentNotice] = useState(false);
 
   useEffect(() => {
     if (!promptId) return undefined;
@@ -94,6 +96,13 @@ export default function PromptEngagementBar({
     event?.stopPropagation();
 
     const result = toggleFavoritePrompt(promptId);
+    if (!result.persisted && result.favorite) {
+      // No "preferences" consent, so nothing was stored: do not show the
+      // button as Saved, and explain why instead of failing silently.
+      setSaved(false);
+      setShowSaveConsentNotice(true);
+      return;
+    }
     setSaved(result.favorite);
   }
 
@@ -129,6 +138,7 @@ export default function PromptEngagementBar({
           <span>{saved ? 'Saved' : 'Save'}</span>
         </button>
       </div>
+      <SaveConsentNotice open={showSaveConsentNotice} onClose={() => setShowSaveConsentNotice(false)} />
     </div>
   );
 }

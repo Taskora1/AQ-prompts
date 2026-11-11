@@ -29,7 +29,7 @@ export default function PromptListingClient({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchResults, setSearchResults] = useState(null); // null = no active fetch
   const [isSearching, setIsSearching] = useState(false);
-  const [sortBy, setSortBy] = useState('random');
+  const [sortBy, setSortBy] = useState('latest');
   const [sortError, setSortError] = useState('');
   const [sortFailedPage, setSortFailedPage] = useState(1);
   const loadMoreStartedRef = useRef(false);
@@ -56,6 +56,13 @@ export default function PromptListingClient({
       if (!response.ok) throw new Error(payload.error || 'Unable to load prompts.');
       if (requestId !== sortRequestIdRef.current) return;
 
+      // Adopt the seed the server used (it generates one when sort=random is
+      // requested without a seed), so retries and "Load more" page with the
+      // same shuffle instead of drifting to a different order.
+      if (sort === 'random' && Number.isSafeInteger(payload.seed)) {
+        sortSeedRef.current = payload.seed;
+      }
+
       setServerPages((current) => ({
         page,
         items: page === 1
@@ -81,9 +88,8 @@ export default function PromptListingClient({
 
   useEffect(() => {
     if (!enableSort) return undefined;
-    const seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-    sortSeedRef.current = seed;
-    requestSortedPage(1, 'random', seed);
+    sortSeedRef.current = null;
+    requestSortedPage(1, 'latest', null);
     return () => {
       sortRequestIdRef.current += 1;
     };
@@ -245,10 +251,10 @@ export default function PromptListingClient({
       : Math.max(totalCount, prompts.length);
 
   return (
-    <section id="prompts" className="overflow-hidden bg-[var(--bg-secondary)] py-8 sm:py-12">
+    <section id="prompts" className="overflow-hidden bg-[var(--bg-secondary)] py-6 sm:py-8">
       <div className="mx-auto min-w-0 max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="relative min-w-0 flex-1 sm:max-w-md">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="search"
@@ -277,8 +283,8 @@ export default function PromptListingClient({
                 onChange={handleSortChange}
                 className="h-12 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm font-semibold text-[var(--text-primary)] outline-none transition-colors focus:border-[#ff6b35] focus-visible:ring-2 focus-visible:ring-[#ff6b35]/20"
               >
-                <option value="random">Random</option>
                 <option value="latest">Latest</option>
+                <option value="random">Random</option>
               </select>
             </label>
           ) : null}
@@ -315,7 +321,7 @@ export default function PromptListingClient({
         ) : null}
 
         {!debouncedSearch ? (
-          <div className="mt-6 min-w-0 columns-2 gap-2 sm:mt-8 sm:columns-3 sm:gap-3 md:columns-4 lg:gap-4">
+          <div className="mt-6 grid min-w-0 grid-cols-2 gap-2 sm:mt-8 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:gap-4">
             {visiblePrompts.map((prompt, index) => (
               <Fragment key={prompt.slug}>
                 <PromptFeedCard
@@ -324,9 +330,11 @@ export default function PromptListingClient({
                   image={prompt.image || prompt.images?.[0] || '/images/placeholder.webp'}
                   imageAlt={prompt.imageAlt || prompt.title || ''}
                   slug={prompt.slug || ''}
+                  promptText={prompt.prompt || ''}
                   sizes={PROMPT_LISTING_IMAGE_SIZES}
                   showSave
                   mobileTitleBelow
+                  uniformAspectRatio
                 />
               </Fragment>
             ))}
@@ -337,7 +345,7 @@ export default function PromptListingClient({
               Search results for &quot;{normalizedSearch}&quot;
               {isSearching ? ' — searching…' : ''}
             </p>
-            <div className="mt-4 columns-2 min-w-0 gap-2 sm:gap-3 md:columns-4 lg:gap-4">
+            <div className="mt-4 grid min-w-0 grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 lg:gap-4">
               {visiblePrompts.map((prompt) => (
                 <PromptFeedCard
                   key={prompt.slug}
@@ -346,9 +354,11 @@ export default function PromptListingClient({
                   image={prompt.image || prompt.images?.[0] || '/images/placeholder.webp'}
                   imageAlt={prompt.imageAlt || prompt.title || ''}
                   slug={prompt.slug || ''}
+                  promptText={prompt.prompt || ''}
                   sizes={PROMPT_LISTING_IMAGE_SIZES}
                   showSave
                   mobileTitleBelow
+                  uniformAspectRatio
                 />
               ))}
             </div>

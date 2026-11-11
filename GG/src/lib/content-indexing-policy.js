@@ -1,3 +1,12 @@
+// ── Audit history only ──────────────────────────────────────────────
+// Owner decision 2026-11-11: ALL published prompt pages are indexable.
+// The slug lists below (GROUP_B low-value, CRITICALLY_THIN, audited
+// existing noindex, and REQUESTED_NOINDEX from the September 2026 review)
+// are RETAINED as documented audit history and are NOT an active gate:
+// shouldNoIndexPrompt() in prompt-constants.js now returns false for
+// every prompt, and no listing, sitemap or metadata code may re-impose
+// these lists. Do not delete them; do not re-enable them without a new
+// explicit owner decision.
 export const GROUP_B_LOW_VALUE_PROMPT_SLUGS = Object.freeze([
   'authentic-eid-mirror-selfie-prompt-young-men',
   'beige-wool-blazer-fashion-illustration-watercolor-fade-prompt',
