@@ -20,31 +20,29 @@ import './site-loader.css';
  *  3. In app/layout.tsx, inside <body>, render <SiteLoader /> before {children}.
  */
 export default function SiteLoader() {
-  // Show the full-screen splash only on the very first load of a browser
-  // session. Client-side navigations (and any remount) skip it entirely.
-  const [visible, setVisible] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    try {
-      return window.sessionStorage.getItem('aq-loader-shown') !== '1';
-    } catch {
-      return true;
-    }
-  });
-  const [gone, setGone] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.sessionStorage.getItem('aq-loader-shown') === '1';
-    } catch {
-      return false;
-    }
-  });
+  // Server aur client dono hamesha loader dikhate hue render karte hain.
+  // sessionStorage ko render ke waqt NAHIN padhte — warna server (loader
+  // dikhata hai) aur client (repeat load par loader chhupata hai) ka HTML
+  // alag hota hai, hydration mismatch hota hai, React page ko kabhi take
+  // over nahi karta, aur loader hamesha ke liye atka rehta hai. Isi liye
+  // reload par page atak jata tha. Session ka faisla sirf effect mein hota
+  // hai, hydration ke baad.
+  const [visible, setVisible] = useState(true);
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    // Remember that the splash has shown, so it never appears again this session.
+    // Session ka faisla yahin hota hai — hydration ke baad, render mein nahi.
+    let alreadyShown = false;
     try {
+      alreadyShown = window.sessionStorage.getItem('aq-loader-shown') === '1';
       window.sessionStorage.setItem('aq-loader-shown', '1');
     } catch {
       // sessionStorage unavailable — the splash still hides via the timers below.
+    }
+    // Is session mein splash ek dafa dikh chuka hai — foran hatao, timer ka wait nahi.
+    if (alreadyShown) {
+      setGone(true);
+      return;
     }
     // The splash is branding, NOT a "page fully loaded" gate: it must never
     // wait for the window `load` event. On a slow connection hydration itself
