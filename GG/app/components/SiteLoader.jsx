@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { LOADER_LOGO_DATA_URI } from '@/lib/brand-logos';
 import './site-loader.css';
 
 /**
@@ -115,12 +116,15 @@ export default function SiteLoader() {
             />
           </svg>
           <Image
-            src="/aqprompts-logo.webp"
+            // 256px logo inlined as a data URI (see src/lib/brand-logos.js):
+            // no 33 KB 512px fetch. No `priority` here on purpose — a data
+            // URI is already inline, and priority would make ReactDOM.preload
+            // hoist a <link> duplicating the whole base64 string.
+            src={LOADER_LOGO_DATA_URI}
             alt="AQPrompts"
             width={128}
             height={128}
             className="aq-loader__logo"
-            priority
           />
         </div>
         <div className="aq-loader__bar">

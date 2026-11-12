@@ -1,6 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { NAVBAR_LOGO_DATA_URI } from '@/lib/brand-logos';
 
 // Header lockup: the AQ mark (square) + the "AQPrompts" wordmark as text,
 // so the brand name is always readable next to the mark.
@@ -9,7 +10,10 @@ const NavbarLogo = ({ className = '', width = 140, height = 36 }) => {
   return (
     <Link href="/" className={`inline-flex items-center gap-2 ${className}`.trim()} aria-label="AQPrompts Home">
       <Image
-        src="/aqprompts-navbar-logo.webp"
+        // 128px logo inlined as a data URI (see src/lib/brand-logos.js):
+        // no 33 KB 512px fetch, no preload, no competition with the hero
+        // (LCP) image. next/image renders data URIs as-is (unoptimized).
+        src={NAVBAR_LOGO_DATA_URI}
         alt=""
         width={markSize}
         height={markSize}

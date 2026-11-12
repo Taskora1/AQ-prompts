@@ -63,14 +63,31 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id
 // on every call (same pattern as ensurePromptEditorialSchema in prompts-db.js).
 let passwordResetTableDone = false;
 
+// D1/SQLite has no ADD COLUMN IF NOT EXISTS: the pg-to-d1 translator
+// strips IF NOT EXISTS (pg-to-d1.js), and these columns already exist in
+// the table (CREATE TABLE above lists them, and the Neon→D1 migration
+// carried them over), so SQLite throws "duplicate column name". That error
+// means the column is already there — exactly the state IF NOT EXISTS
+// wanted — so ignore it and only it. Any other error still throws (fail
+// loudly). On Neon the native IF NOT EXISTS never throws for an existing
+// column, so the guard is a no-op there.
+async function addColumnIfMissing(pool, sql) {
+  try {
+    await pool.query(sql);
+  } catch (error) {
+    if (/duplicate column name/i.test(String(error?.message || ''))) return;
+    throw error;
+  }
+}
+
 export async function ensurePasswordResetTable() {
   if (passwordResetTableDone) return;
 
   const pool = getPgPool();
   await pool.query(CREATE_PASSWORD_RESET_TABLE_SQL);
-  await pool.query(ADD_OTP_HASH_COLUMN_SQL);
-  await pool.query(ADD_OTP_ATTEMPTS_COLUMN_SQL);
-  await pool.query(ADD_OTP_EXPIRES_AT_COLUMN_SQL);
+  await addColumnIfMissing(pool, ADD_OTP_HASH_COLUMN_SQL);
+  await addColumnIfMissing(pool, ADD_OTP_ATTEMPTS_COLUMN_SQL);
+  await addColumnIfMissing(pool, ADD_OTP_EXPIRES_AT_COLUMN_SQL);
   await pool.query(CREATE_TOKEN_HASH_INDEX_SQL);
   await pool.query(CREATE_OTP_HASH_INDEX_SQL);
   await pool.query(CREATE_USER_ID_INDEX_SQL);

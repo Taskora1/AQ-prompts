@@ -37,7 +37,6 @@ import {
 } from '@/lib/prompts';
 import { PROMPT_CATEGORY_BLOG_LINKS } from '@/lib/prompt-constants';
 import { buildBreadcrumbSchema, buildFaqSchema, buildWebsiteSchema } from '@/lib/seo';
-import { optimizeCloudinaryUrl } from '@/lib/cloudinary-optimize';
 
 const siteUrl = process.env.SITE_URL || 'https://www.aqprompts.com';
 const MAIN_PAGE_CARD_LIMIT = 12;
@@ -243,13 +242,11 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
   const schema = [...buildPromptJsonLd(prompt), buildFaqSchema(prompt.faqs)].filter(Boolean);
   const previewImages = Array.isArray(prompt.images) && prompt.images.length > 0 ? prompt.images : [prompt.image || '/images/placeholder.webp'];
   const previewImage = previewImages[0] || '/images/placeholder.webp';
-  // Preload the LCP image: the carousel <img> sits below the header and
-  // breadcrumbs in the HTML, so the browser discovers it late. Preloading the
-  // same 800w URL the carousel requests (srcSet is capped at 800w below) lets
-  // the fetch start with the first bytes of the document. Local images skip
-  // this — next/image already preloads those when priority is set.
-  const previewImagePreloadUrl = optimizeCloudinaryUrl(previewImage, { width: 800 });
-  const shouldPreloadPreviewImage = previewImagePreloadUrl.includes('res.cloudinary.com');
+  // No manual preload here: the carousel <img> below renders with
+  // fetchPriority="high" and a srcSet, so React already preloads it with the
+  // right size for the viewport. A hardcoded 800w preload only forced a
+  // second, oversized download on mobile (the browser fetched both the 800w
+  // preload and the srcSet pick).
   const mediaContext = [prompt.slug, prompt.title, prompt.prompt, prompt.intro, ...(prompt.tags || [])].filter(Boolean).join(' ');
   const mediaDisclosure = previewImage === VERIFIED_MEDIA_PLACEHOLDER
     ? 'The original example is withheld because it requires additional safety or rights review.'
@@ -258,9 +255,6 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
   return (
     <>
       <JsonLd data={schema} />
-      {shouldPreloadPreviewImage ? (
-        <link rel="preload" as="image" href={previewImagePreloadUrl} fetchPriority="high" />
-      ) : null}
       <Header />
       <main id="main-content" className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#fff7f2_0%,_#f8f9fc_36rem,_#f5f6fa_100%)] pb-24 text-[#111118] dark:bg-[radial-gradient(ellipse_at_top,_#17120f_0%,_#0a0a0f_34rem,_#09090d_100%)] dark:text-white md:pb-0">
 

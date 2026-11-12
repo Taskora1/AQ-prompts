@@ -25,7 +25,7 @@ export function optimizeCloudinaryUrl(url, { width = 800, quality = 'eco' } = {}
   return url.replace('/upload/', `/upload/${transformations}/`);
 }
 
-export function getCloudinaryResponsiveImage(url, { widths = [480, 640, 720, 800, 960, 1200], quality = 'eco' } = {}) {
+export function getCloudinaryResponsiveImage(url, { widths = [320, 360, 480, 640, 720, 800, 960, 1200], quality = 'eco' } = {}) {
   if (typeof url !== 'string' || !url.includes('cloudinary.com') || !url.includes('/upload/')) {
     return null;
   }

@@ -22,6 +22,11 @@ const ResponsiveImage = ({
   quality,
   preserveAspect = false,
   responsiveCloudinary = false,
+  // Width (px) for the Cloudinary src URL when the image has no srcSet.
+  // The default optimize width is 800 — far too big for small thumbnails
+  // (e.g. the 96px sidebar Featured image). Only set where the display
+  // size is known and small.
+  cloudinaryWidth,
   // When true, the image does not zoom on hover. The zoom scales the image
   // inside an overflow-hidden wrapper, which clips a few percent off every
   // edge while hovered — enough to cut off text baked into a cover image
@@ -40,7 +45,10 @@ const ResponsiveImage = ({
     ? getCloudinaryResponsiveImage(src)
     : null;
   const srcSet = responsiveImage?.srcSet || cloudinaryResponsiveImage?.srcSet;
-  const optimizedSrc = optimizeCloudinaryUrl(src);
+  const optimizedSrc = optimizeCloudinaryUrl(
+    src,
+    cloudinaryWidth ? { width: cloudinaryWidth } : undefined,
+  );
 
   return (
     <div className={`relative group w-full ${preserveAspect ? '' : 'h-full'} overflow-hidden ${roundingClass} bg-[#f9fafb] dark:bg-[#111118] shadow-[0_24px_60px_rgba(255,107,53,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.3)] transition-all duration-500 hover:shadow-[0_32px_80px_rgba(255,107,53,0.2)] dark:hover:shadow-[0_32px_80px_rgba(0,0,0,0.5)] ${wrapperHoverZoomClass}`}>

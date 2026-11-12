@@ -982,7 +982,7 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                       <h2 className="text-2xl font-semibold tracking-normal text-slate-950 dark:text-white">Featured</h2>
 
                       <div className="mt-5 space-y-3">
-                        {featuredPosts.map((featuredPost, featuredIndex) => (
+                        {featuredPosts.map((featuredPost) => (
                           <Link
                             key={featuredPost.slug}
                             href={`/blog/${featuredPost.slug}`}
@@ -999,7 +999,13 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
                                 alt={featuredPost.title}
                                 rounded={false}
                                 className="absolute inset-0 h-full w-full object-cover object-center"
-                                loading={featuredIndex === 0 ? 'eager' : 'lazy'}
+                                // Sidebar is below the fold on desktop and
+                                // hidden on mobile: never eager-load it (an
+                                // eager image gets preloaded on every post
+                                // page even though it is never shown on
+                                // mobile). 96px display, so 192w covers 2x.
+                                loading="lazy"
+                                cloudinaryWidth={192}
                                 sizes="96px"
                               />
                             </div>

@@ -111,7 +111,7 @@ export default function RootLayout({ children }) {
     >
       <head>
         <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
-        <Script src="/scripts/ad-preload-bootstrap.js" strategy="beforeInteractive" />
+        <Script src="/scripts/ad-preload-bootstrap.js" strategy="afterInteractive" />
         {gscVerify ? <meta name="google-site-verification" content={gscVerify} /> : null}
         {bingVerify ? <meta name="msvalidate.01" content={bingVerify} /> : null}
         {pinterestVerify ? <meta name="p:domain_verify" content={pinterestVerify} /> : null}

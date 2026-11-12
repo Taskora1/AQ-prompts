@@ -15,10 +15,18 @@ async function ensureScheduledAtColumn() {
   if (scheduledAtSchemaDone) return;
 
   const pool = getPgPool();
-  await pool.query(`
-    ALTER TABLE prompts
-    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ
-  `);
+  try {
+    await pool.query(`
+      ALTER TABLE prompts
+      ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ
+    `);
+  } catch (error) {
+    // D1/SQLite has no ADD COLUMN IF NOT EXISTS (the pg-to-d1 translator
+    // strips it); prompts.scheduled_at already exists from the Neon→D1
+    // migration, so "duplicate column name" just means the column is
+    // already there. Ignore only that error; any other error still throws.
+    if (!/duplicate column name/i.test(String(error?.message || ''))) throw error;
+  }
   scheduledAtSchemaDone = true;
 }
 
