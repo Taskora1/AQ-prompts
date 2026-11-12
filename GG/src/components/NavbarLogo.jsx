@@ -8,7 +8,10 @@ import { NAVBAR_LOGO_DATA_URI } from '@/lib/brand-logos';
 const NavbarLogo = ({ className = '', width = 140, height = 36 }) => {
   const markSize = height;
   return (
-    <Link href="/" className={`inline-flex items-center gap-2 ${className}`.trim()} aria-label="AQPrompts Home">
+    // prefetch={false}: the logo link sits in the header on every page and
+    // prefetched the ~20 KB homepage RSC payload on every load, competing
+    // with the LCP image. Home loads on click instead.
+    <Link href="/" prefetch={false} className={`inline-flex items-center gap-2 ${className}`.trim()} aria-label="AQPrompts Home">
       <Image
         // 128px logo inlined as a data URI (see src/lib/brand-logos.js):
         // no 33 KB 512px fetch, no preload, no competition with the hero

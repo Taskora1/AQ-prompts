@@ -340,9 +340,12 @@ const BlogPage = ({ initialPosts = [] }) => {
                           src={post.image || post.coverImage || post.featuredImage || '/images/prompts/cinematic-sunset-beach-portrait.webp'}
                           alt={post.featuredImageAltText || post.title}
                           className="w-full"
-                          loading={index === 0 ? undefined : 'lazy'}
-                          priority={index === 0}
-                          fetchPriority={index === 0 ? 'high' : undefined}
+                          // No priority here: only the Featured image above is
+                          // the LCP element. This first grid card sits below
+                          // the fold (under Featured + the section heading),
+                          // so an eager high-priority fetch only competes
+                          // with the Featured image on Slow 4G.
+                          loading="lazy"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           preserveAspect
                           responsiveCloudinary
@@ -416,9 +419,9 @@ const BlogPage = ({ initialPosts = [] }) => {
                             src={post.image || post.coverImage || post.featuredImage || '/images/prompts/cinematic-sunset-beach-portrait.webp'}
                             alt={post.featuredImageAltText || post.title}
                             className="w-full"
-                            loading={index === 0 ? undefined : 'lazy'}
-                            priority={index === 0}
-                            fetchPriority={index === 0 ? 'high' : undefined}
+                            // Same as the grid view: only the Featured image
+                            // is priority. This card is below the fold.
+                            loading="lazy"
                             sizes="(max-width: 768px) 100vw, 33vw"
                             preserveAspect
                             responsiveCloudinary

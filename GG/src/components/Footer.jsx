@@ -120,8 +120,13 @@ export default function Footer() {
                   <ul className="space-y-2 pb-4 md:mt-3 md:pb-0">
                     {group.links.map((link) => (
                       <li key={link.label}>
+                        {/* prefetch={false}: footer links are below the fold
+                            but still prefetched their RSC payloads once in
+                            view; they compete with nothing critical, but
+                            there is no reason to spend the bandwidth. */}
                         <Link
                           href={link.href}
+                          prefetch={false}
                           className="text-sm font-medium text-[#374151] transition hover:text-[#c2410c] dark:text-[#9ca3af] dark:hover:text-[#c2410c]"
                         >
                           {link.label}

@@ -41,7 +41,12 @@ export default function Navbar() {
 
             <div className="hidden items-center gap-7 xl:flex">
               {navLinks.map((link) => (
-                <Link key={link.label} href={link.href} className={navLinkClass}>
+                // prefetch={false}: these 5 links sit in the header viewport
+                // and each prefetched its page's RSC payload (homepage ~20 KB,
+                // library/blog/category ~13 KB each) on every page load,
+                // competing with the LCP image on Slow 4G. Nav loads on
+                // click instead (same trade batch-3 made for cards/pills).
+                <Link key={link.label} href={link.href} prefetch={false} className={navLinkClass}>
                   {link.label}
                 </Link>
               ))}
