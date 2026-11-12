@@ -297,7 +297,11 @@ export default function CookieConsentManager({ gaId = '', clarityId = '' }) {
             <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between sm:gap-4">
               <h2 id="cookie-consent-title" className="text-sm font-black sm:text-base">Privacy choices</h2>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] font-semibold text-slate-600 dark:text-slate-300 sm:mt-0 sm:justify-end sm:text-xs">
-                <Link href="/cookie-policy" className="text-[#c2410c] underline-offset-4 hover:underline dark:text-[#ff9a73]">
+                {/* prefetch={false}: the banner sits in the viewport on
+                    first load, so these links prefetched the cookie-policy
+                    (~9 KB) and privacy RSC payloads on every page,
+                    competing with the LCP image. They load on click. */}
+                <Link href="/cookie-policy" prefetch={false} className="text-[#c2410c] underline-offset-4 hover:underline dark:text-[#ff9a73]">
                   Cookie Policy
                 </Link>
                 <span aria-hidden="true">·</span>
@@ -406,8 +410,8 @@ export default function CookieConsentManager({ gaId = '', clarityId = '' }) {
               </button>
             </div>
             <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-              See our <Link href="/privacy" className="font-bold text-[#c2410c] hover:underline">Privacy Policy</Link> and{' '}
-              <Link href="/cookie-policy" className="font-bold text-[#c2410c] hover:underline">Cookie Policy</Link>.
+              See our <Link href="/privacy" prefetch={false} className="font-bold text-[#c2410c] hover:underline">Privacy Policy</Link> and{' '}
+              <Link href="/cookie-policy" prefetch={false} className="font-bold text-[#c2410c] hover:underline">Cookie Policy</Link>.
             </p>
           </section>
         </div>
