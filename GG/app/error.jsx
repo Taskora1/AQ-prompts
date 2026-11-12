@@ -14,7 +14,7 @@ export default function Error({ error, reset }) {
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
           Something went wrong
         </p>
-        <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+        <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           This page could not load
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground">

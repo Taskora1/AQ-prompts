@@ -256,7 +256,7 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
     <>
       <JsonLd data={schema} />
       <Header />
-      <main id="main-content" className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#fff7f2_0%,_#f8f9fc_36rem,_#f5f6fa_100%)] pb-24 text-[#111118] dark:bg-[radial-gradient(ellipse_at_top,_#17120f_0%,_#0a0a0f_34rem,_#09090d_100%)] dark:text-white md:pb-0">
+      <main id="main-content" className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#fff7f2_0%,_#f8f9fc_36rem,_#f5f6fa_100%)] pb-28 text-[#111118] dark:bg-[radial-gradient(ellipse_at_top,_#17120f_0%,_#0a0a0f_34rem,_#09090d_100%)] dark:text-white">
 
         {/* ══════ BREADCRUMBS ══════ */}
         <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8 lg:pt-7">

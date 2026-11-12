@@ -12,6 +12,9 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 
+import { PromptBlock } from './editor-prompt-block';
+import { FaqBlock } from './editor-faq-block';
+
 /**
  * Returns the TipTap extensions array for the BlogForm block editor.
  * All packages are free / open-source — no paid TipTap services.
@@ -20,10 +23,14 @@ export function createExtensions({ placeholder = 'Write your blog post…' } = {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5, 6] },
-      codeBlock: {
-        HTMLAttributes: { class: 'prompt-block' },
-      },
+      // No class override here: plain code blocks stay plain <pre><code>.
+      // Prompt blocks are the separate PromptBlock node, which renders
+      // <pre class="prompt-block"> itself. (Before Batch A, StarterKit's
+      // codeBlock carried the prompt-block class — old saved HTML already
+      // has the class, so it still parses back as a PromptBlock.)
     }),
+    PromptBlock,
+    FaqBlock,
     Underline,
     Link.configure({
       openOnClick: false,

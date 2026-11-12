@@ -191,11 +191,15 @@ test('Fix 1: a beyond-end page reports the count instead of 0', async () => {
   assert.equal(totalCount, 54);
 });
 
-test('Fix 1: the paginated path keeps the per-row LATERAL (it runs only for the returned rows)', async () => {
+test('Fix 1: the paginated path keeps per-row category subqueries (they run only for the returned rows)', async () => {
   await getSlimPromptsPage({ limit: 12, sort: 'latest' });
 
   const [pageSql] = queries;
-  assert.match(pageSql, /LEFT JOIN LATERAL/);
+  // D1 has no LATERAL: the per-row fetch is a correlated JSONB_AGG
+  // subquery (see the comment in queryPromptRowsSlim). The intent is the
+  // same — categories are fetched per returned row, not GROUP BY over the
+  // whole table.
+  assert.match(pageSql, /\(SELECT JSONB_AGG\(c\.name ORDER BY pc\.position, c\.id\)/);
   assert.doesNotMatch(pageSql, /GROUP BY/);
 });
 
@@ -251,4 +255,41 @@ test('Fix 3: listing payload fetches ids first, then text for those rows only', 
   assert.doesNotMatch(sql, /eligible_rows/);
   assert.equal(payload.totalCount, 576);
   assert.deepEqual(payload.prompts.map((prompt) => prompt.id), [818, 817, 816]);
+});
+
+// D1 row-read fixes (2026-11-13): the listing path was reading ~5M rows/day
+// on the free tier. The seeded shuffle ran the per-row category subqueries
+// for every matching row before the md5 sort; the COUNT scanned thousands
+// of rows per call; and identical pages were re-queried on every hit.
+test('D1 fix: seeded shuffle fetches ids first, then rows by id (no subqueries over all rows)', async () => {
+  const { prompts, totalCount } = await getSlimPromptsPage({ limit: 12, sort: 'random', randomSeed: 48291 });
+
+  // ids query + count query (in parallel), then the by-ids fetch.
+  assert.equal(queries.length, 3);
+  const [idsSql, countSql, byIdsSql] = queries;
+  assert.match(idsSql, /SELECT p\.id\s+FROM prompts p/);
+  assert.match(idsSql, /ORDER BY md5\(p\.id::text \|\| ':' \|\| \$1::text\) LIMIT \$2 OFFSET \$3/);
+  assert.doesNotMatch(idsSql, /JSONB_AGG/);
+  assert.match(countSql, /SELECT COUNT\(\*\)::int AS "totalCount"/);
+  assert.match(byIdsSql, /p\.id = ANY\(\$1::bigint\[\]\)/);
+  assert.equal(totalCount, 54);
+  assert.deepEqual(prompts.map((prompt) => prompt.id), [818, 817, 816]);
+});
+
+test('D1 fix: the listing count is cached across pages of the same filters', async () => {
+  await getSlimPromptsPage({ limit: 12, offset: 0, sort: 'latest' });
+  await getSlimPromptsPage({ limit: 12, offset: 12, sort: 'latest' });
+
+  // First call: page + count. Second call (different page key): page only,
+  // the count for the same filters comes from the 5-minute cache.
+  assert.equal(queries.length, 3);
+  assert.doesNotMatch(queries[2], /COUNT\(\*\)/);
+});
+
+test('D1 fix: an identical listing page is served from the 60s cache', async () => {
+  const first = await getSlimPromptsPage({ limit: 12, sort: 'latest' });
+  const second = await getSlimPromptsPage({ limit: 12, sort: 'latest' });
+
+  assert.equal(queries.length, 2, 'second identical call issues no new queries');
+  assert.deepEqual(second, first);
 });

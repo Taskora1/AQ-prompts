@@ -21,6 +21,7 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 import BlockEditor from '@/components/ui/BlockEditor';
 import AltTextEditor from '@/components/ui/AltTextEditor';
 import { markdownToHtml, htmlToMarkdown, isHtmlContent } from '@/lib/md-conversion';
+import { sanitizeBlogBlocks } from '@/lib/blog-content';
 
 // ── Feature flag ──
 // Set to `false` to instantly restore the old RichTextEditor.
@@ -595,6 +596,15 @@ export default function BlogForm({ initialPost = null }) {
       return;
     }
 
+    // Drop empty prompt blocks before saving — they render as copy boxes
+    // that copy nothing (the Birthday-post bug). Same for empty FAQ blocks
+    // and extra FAQ sections (one FAQ per post). The server strips them
+    // too; doing it here keeps the editor and the saved post in step.
+    const { html: cleanContent, removedEmptyPrompts, removedEmptyFaqs, removedExtraFaqs } = sanitizeBlogBlocks(form.content);
+    if (removedEmptyPrompts > 0 || removedEmptyFaqs > 0 || removedExtraFaqs > 0) {
+      setForm((c) => ({ ...c, content: cleanContent }));
+    }
+
     // Alt text validation — mandatory when publishing
     if (form.status === 'published') {
       const hasFeatured = !!(featuredImageFile || form.featuredImage);
@@ -630,9 +640,9 @@ export default function BlogForm({ initialPost = null }) {
       // Neon stores HTML directly — no need to convert to Markdown
       const payload = {
         ...form,
-        content: form.content,
-        contentHtml: form.content,
-        contentText: form.content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+        content: cleanContent,
+        contentHtml: cleanContent,
+        contentText: cleanContent.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
         featuredImage,
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
         readingTime: Number(form.readingTime) || 5,

@@ -27,6 +27,7 @@ import { useCopyGate } from '../components/CopyGate';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { formatStableDate } from '../lib/utils';
+import { sanitizeBlogBlocks } from '../lib/blog-content';
 import { isAuditedNoIndexPromptSlug } from '../lib/content-indexing-policy';
 import { BLOG_POST_COVER_SIZES, getBlogPostCoverImage } from '../lib/article';
 
@@ -158,12 +159,41 @@ function dropRedundantTableColumns(html = '') {
   });
 }
 
+// Shared accordion markup for a list of [question, answers] pairs.
+function faqPairsToAccordion(pairs) {
+  return `<div class="article-faq-list">${pairs
+    .map(
+      ([, question, answers]) =>
+        `<details class="article-faq-item"><summary class="article-faq-question"><span>${question.trim()}</span><span class="article-faq-chevron" aria-hidden="true">›</span></summary><div class="article-faq-answer">${answers.trim()}</div></details>`,
+    )
+    .join('')}</div>`;
+}
+
 // Turn an in-body FAQ section (h2 "Frequently Asked Questions" followed
 // by h3 questions with paragraph answers) into a <details> accordion.
 // Wording is unchanged; only the markup changes. The h2 gets the
 // common-questions id so the "Jump to FAQ" link still lands on it.
+// The FAQ block form (<div class="faq-block">…) is handled the same way:
+// the whole div is replaced by the heading + accordion.
 function convertInlineFaqToAccordion(html = '') {
   const source = String(html || '');
+
+  const faqBlockMatch = source.match(/<div\b[^>]*\bfaq-block\b[^>]*>([\s\S]*?)<\/div>/i);
+  if (faqBlockMatch) {
+    const pairs = [...faqBlockMatch[1].matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>\s*((?:<p\b[^>]*>[\s\S]*?<\/p>\s*)+)/gi)];
+    if (pairs.length === 0) {
+      // Empty FAQ block — nothing to show.
+      return source.slice(0, faqBlockMatch.index) + source.slice(faqBlockMatch.index + faqBlockMatch[0].length);
+    }
+    const heading = '<h2 id="common-questions">Frequently Asked Questions</h2>';
+    return (
+      source.slice(0, faqBlockMatch.index)
+      + heading
+      + faqPairsToAccordion(pairs)
+      + source.slice(faqBlockMatch.index + faqBlockMatch[0].length)
+    );
+  }
+
   const headingPattern = /<h2\b([^>]*)>([\s\S]*?)<\/h2>/gi;
   let headingMatch;
   let faqHeading = null;
@@ -184,12 +214,7 @@ function convertInlineFaqToAccordion(html = '') {
   const pairs = [...section.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>\s*((?:<p\b[^>]*>[\s\S]*?<\/p>\s*)+)/gi)];
   if (pairs.length === 0) return source;
 
-  const accordion = `<div class="article-faq-list">${pairs
-    .map(
-      ([, question, answers]) =>
-        `<details class="article-faq-item"><summary class="article-faq-question"><span>${question.trim()}</span><span class="article-faq-chevron" aria-hidden="true">›</span></summary><div class="article-faq-answer">${answers.trim()}</div></details>`,
-    )
-    .join('')}</div>`;
+  const accordion = faqPairsToAccordion(pairs);
 
   const headingAttrs = faqHeading[1] || '';
   const headingWithId = /id\s*=/.test(headingAttrs)
@@ -226,7 +251,9 @@ const POST_PAGE_STYLES = `
 function renderArticleBlocksHtml(post) {
   // Always prefer content_html (canonical rendered HTML from Neon).
   // Fallback to content only for backward compatibility with legacy generated data.
-  const html = post?.contentHtml || post?.content || '';
+  // Empty prompt blocks saved before the save-time strip are dropped here so
+  // they never render as copy boxes that copy nothing.
+  const html = sanitizeBlogBlocks(post?.contentHtml || post?.content || '').html;
   const title = String(post?.title || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const htmlWithoutDuplicateTitle = String(html || '').replace(/^\s*<h1\b[^>]*>([\s\S]*?)<\/h1>\s*/i, (match, headingText) => {
     const normalizedHeading = String(headingText || '')

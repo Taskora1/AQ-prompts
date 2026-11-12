@@ -45,6 +45,9 @@ import {
 
 import { createExtensions } from './editor-extensions';
 import MediaLibrary from './MediaLibrary';
+import { togglePromptBlock } from './editor-prompt-block';
+import { insertFaqBlock } from './editor-faq-block';
+import { hasFaqSection } from '../../lib/blog-content';
 import './editor-styles.css';
 
 /* ────────────────────────────────────────────
@@ -487,9 +490,26 @@ const BlockEditor = forwardRef(function BlockEditor(
       <ToolbarButton
         icon={Code}
         label="Prompt block"
-        active={editor.isActive('codeBlock')}
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        active={editor.isActive('promptBlock')}
+        onClick={() => togglePromptBlock(editor)}
       />
+      <ToolbarDivider />
+
+      {/* FAQ — one section per post (standing rule) */}
+      <button
+        type="button"
+        title={
+          hasFaqSection(editor.getHTML())
+            ? 'This post already has an FAQ section (one per post)'
+            : 'Insert FAQ block'
+        }
+        aria-label="Insert FAQ block"
+        disabled={hasFaqSection(editor.getHTML())}
+        onClick={() => insertFaqBlock(editor)}
+        className="inline-flex h-8 items-center rounded px-2 text-xs font-semibold text-[#50575e] transition hover:bg-[#f0f0f1] hover:text-[#1d2327] disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        FAQ
+      </button>
       <ToolbarDivider />
 
       {/* Links */}

@@ -321,7 +321,14 @@ export default function HomeLanding({
                   href={tool.href}
                   className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[#c2410c] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c] focus-visible:ring-offset-2 dark:border-white/10 dark:bg-[#0a0a0f]"
                 >
-                  <img src={tool.logo} alt={`${tool.name} logo`} loading="lazy" className="h-10 w-10 object-contain" />
+                  {/* Light chip in both modes: the logos are designed for
+                      light backgrounds (Midjourney/Gemini have white baked
+                      in, Leonardo/Stable Diffusion are dark marks). On the
+                      dark card they would clash or vanish; the chip gives
+                      every logo the same readable surface. */}
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                    <img src={tool.logo} alt={`${tool.name} logo`} loading="lazy" className="h-9 w-9 object-contain" />
+                  </span>
                   <span className="mt-3 block text-sm font-black text-slate-950 dark:text-white">{tool.name}</span>
                   <span className="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-300">{tool.detail}</span>
                 </Link>

@@ -11,6 +11,7 @@
  */
 
 import { getPgPool } from './db.js';
+import { sanitizeBlogBlocks } from './blog-content.js';
 import { cache } from 'react';
 
 // ── Cache (similar to prompts-db.js) ───────────────────────────────────
@@ -541,6 +542,9 @@ export async function getPublishedBlogPostsForRelated(
  * Returns the created post.
  */
 export async function createBlogPost(data) {
+  // Empty prompt blocks are stripped in sanitizeBlogContent (below) so no
+  // empty prompt block can be saved, from any writer (admin API, MCP).
+  const clean = sanitizeBlogContent(data);
   const db = getPgPool();
   const result = await db.query(`
     INSERT INTO blog_posts (
@@ -565,9 +569,9 @@ export async function createBlogPost(data) {
     data.slug,
     data.title,
     data.excerpt || '',
-    data.content || '',
-    data.contentHtml || '',
-    data.contentText || '',
+    clean.content,
+    clean.contentHtml,
+    clean.contentText,
     data.featuredImage || '',
     data.featuredImageAlt || '',
     data.author || 'Abdul Qudoos',
@@ -592,7 +596,30 @@ export async function createBlogPost(data) {
   // Clear cache
   clearBlogCache();
 
-  return mapPostWriteResult(result.rows[0], data);
+  return mapPostWriteResult(result.rows[0], clean);
+}
+
+// Empty prompt blocks render as copy boxes that copy nothing (the
+// Birthday-post bug) — drop them from the HTML before saving, from every
+// writer (admin API, MCP). Same for empty FAQ blocks and extra FAQ
+// sections (standing rule: one FAQ per post). If anything was dropped,
+// keep the stored plain text in step with the cleaned HTML. Everything
+// else passes through untouched, so the write still returns only generated
+// fields merged with the full post payload (see mapPostWriteResult).
+function sanitizeBlogContent(data) {
+  const cleanContent = sanitizeBlogBlocks(data.content || '');
+  const cleanContentHtml = sanitizeBlogBlocks(data.contentHtml || '');
+  let contentText = data.contentText || '';
+  const removedAny = cleanContent.removedEmptyPrompts > 0
+    || cleanContent.removedEmptyFaqs > 0
+    || cleanContent.removedExtraFaqs > 0
+    || cleanContentHtml.removedEmptyPrompts > 0
+    || cleanContentHtml.removedEmptyFaqs > 0
+    || cleanContentHtml.removedExtraFaqs > 0;
+  if (removedAny) {
+    contentText = cleanContentHtml.html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  }
+  return { ...data, content: cleanContent.html, contentHtml: cleanContentHtml.html, contentText };
 }
 
 /**
@@ -600,6 +627,8 @@ export async function createBlogPost(data) {
  * Returns the updated post, or null if not found.
  */
 export async function updateBlogPost(slug, data) {
+  // Same empty-prompt-block strip as createBlogPost (see sanitizeBlogContent).
+  const clean = sanitizeBlogContent(data);
   const db = getPgPool();
   const result = await db.query(`
     UPDATE blog_posts SET
@@ -640,9 +669,9 @@ export async function updateBlogPost(slug, data) {
     data.slug || slug,
     data.title || '',
     data.excerpt || '',
-    data.content || '',
-    data.contentHtml || '',
-    data.contentText || '',
+    clean.content,
+    clean.contentHtml,
+    clean.contentText,
     data.featuredImage || '',
     data.featuredImageAlt || '',
     data.author || 'Abdul Qudoos',
@@ -669,7 +698,7 @@ export async function updateBlogPost(slug, data) {
   // Clear cache
   clearBlogCache();
 
-  return mapPostWriteResult(result.rows[0], data);
+  return mapPostWriteResult(result.rows[0], clean);
 }
 
 /**

@@ -423,6 +423,89 @@ function buildSlimPromptConditions({ categorySlugs = [], search = '' } = {}) {
   return { conditions, values };
 }
 
+// Preview-environment fallback shared by the listing paths: with an empty
+// database the synthetic fixture stands in for the first page only, when
+// the filters match it. Extracted verbatim from queryPromptRowsSlim so the
+// random ids-first path (which never runs the main query) applies the
+// exact same rule.
+function applySlimPreviewFallback({ prompts, categorySlugs = [], search = '', limit = null, offset = 0 }) {
+  if (prompts.length || !isPreviewEnvironment() || Number(offset) > 0) return prompts;
+
+  const fallback = normalizePromptSlim(PREVIEW_SYNTHETIC_PROMPT, {
+    resolveLegacyMedia: true,
+  });
+  const normalizedSearch = cleanText(search).toLowerCase();
+  const searchWords = normalizedSearch.split(/\s+/).filter(Boolean);
+  const searchableText = [
+    fallback.title,
+    fallback.prompt,
+    fallback.intro,
+    fallback.category,
+    fallback.useCase,
+    ...fallback.tags,
+  ].join(' ').toLowerCase();
+  const matchesCategory = categorySlugs.length === 0
+    || categorySlugs.includes(fallback.primaryCategorySlug)
+    || categorySlugs.some((slug) => fallback.categorySlugs.includes(slug));
+
+  if (
+    !matchesCategory
+    || (searchWords.length > 0 && !searchWords.every((word) => searchableText.includes(word)))
+    || (limit !== null && Number(limit) < 1)
+  ) {
+    return prompts;
+  }
+
+  return [fallback];
+}
+
+// Seeded-shuffle page fetch: ids first, then full rows for those ids only.
+// The ORDER BY md5(...) path used to run the per-row category subqueries
+// for EVERY matching row before the sort (the planner cannot push LIMIT
+// past them) — on D1 that read ~5,470 rows per shuffle page. Sorting ids
+// only (narrow scan, no text columns, no subqueries) and fetching the
+// page rows by id keeps the exact same shuffle order (same md5 seed
+// expression, same LIMIT/OFFSET) with subqueries only for the returned rows.
+async function queryPromptRowsSlimRandom({
+  categorySlugs = [],
+  search = '',
+  limit,
+  offset = 0,
+  randomSeed,
+}) {
+  const db = getPgPool();
+  const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
+  values.push(randomSeed);
+  const seedParam = `$${values.length}`;
+  values.push(Math.min(Math.max(Number(limit) || 12, 1), 1000));
+  const limitParam = `$${values.length}`;
+  values.push(Math.max(0, Number(offset) || 0));
+  const offsetParam = `$${values.length}`;
+  const { rows } = await db.query({
+    text: `
+      SELECT p.id
+      FROM prompts p
+      LEFT JOIN categories primary_category
+        ON primary_category.id = p.primary_category_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY md5(p.id::text || ':' || ${seedParam}::text) LIMIT ${limitParam} OFFSET ${offsetParam}
+    `,
+    values,
+  });
+  const ids = rows
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+  if (ids.length === 0) {
+    return applySlimPreviewFallback({ prompts: [], categorySlugs, search, limit, offset });
+  }
+  const prompts = await getSlimPromptsByIds(ids);
+  // getSlimPromptsByIds returns rows in unspecified order; restore the
+  // md5-seed order so paging stays stable across pages.
+  const byId = new Map(prompts.map((prompt) => [Number(prompt.id), prompt]));
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  return applySlimPreviewFallback({ prompts: ordered, categorySlugs, search, limit, offset });
+}
+
 async function queryPromptRowsSlim({
   categorySlugs = [],
   search = '',
@@ -431,6 +514,12 @@ async function queryPromptRowsSlim({
   sort = 'latest',
   randomSeed = null,
 } = {}) {
+  // Seeded shuffle goes ids-first (see queryPromptRowsSlimRandom): the
+  // md5 sort below would run the per-row subqueries for every matching
+  // row before LIMIT.
+  if (sort === 'random' && Number.isSafeInteger(randomSeed) && limit !== null) {
+    return queryPromptRowsSlimRandom({ categorySlugs, search, limit, offset, randomSeed });
+  }
   const db = getPgPool();
   const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
 
@@ -529,34 +618,7 @@ async function queryPromptRowsSlim({
     }))
     .filter((prompt) => prompt.title && prompt.prompt);
 
-  if (prompts.length || !isPreviewEnvironment() || Number(offset) > 0) return prompts;
-
-  const fallback = normalizePromptSlim(PREVIEW_SYNTHETIC_PROMPT, {
-    resolveLegacyMedia: true,
-  });
-  const normalizedSearch = cleanText(search).toLowerCase();
-  const searchWords = normalizedSearch.split(/\s+/).filter(Boolean);
-  const searchableText = [
-    fallback.title,
-    fallback.prompt,
-    fallback.intro,
-    fallback.category,
-    fallback.useCase,
-    ...fallback.tags,
-  ].join(' ').toLowerCase();
-  const matchesCategory = categorySlugs.length === 0
-    || categorySlugs.includes(fallback.primaryCategorySlug)
-    || categorySlugs.some((slug) => fallback.categorySlugs.includes(slug));
-
-  if (
-    !matchesCategory
-    || (searchWords.length > 0 && !searchWords.every((word) => searchableText.includes(word)))
-    || (limit !== null && Number(limit) < 1)
-  ) {
-    return prompts;
-  }
-
-  return [fallback];
+  return applySlimPreviewFallback({ prompts, categorySlugs, search, limit, offset });
 }
 
 /**
@@ -568,7 +630,24 @@ async function queryPromptRowsSlim({
  * needed here — the category condition matches assigned slugs via a direct
  * EXISTS, and the count selects nothing from the aggregates.
  */
+// In-memory total cache for the listing count: the total only changes when
+// prompts are published/unpublished or categories change, but the count
+// query scans thousands of rows per call on D1 (~3,300-3,850 rows to return
+// one number with a category filter). Cleared by clearSlimPromptsCache() /
+// clearPromptsCache(), which the admin revalidation path already calls on
+// every publish/unpublish.
+const SLIM_COUNT_CACHE_TTL_MS = 5 * 60 * 1000;
+const slimCountCache = new Map();
+
+function slimCountCacheKey({ categorySlugs = [], search = '' } = {}) {
+  return JSON.stringify({ c: [...categorySlugs].sort(), s: cleanText(search) });
+}
+
 async function countSlimPrompts({ categorySlugs = [], search = '' } = {}) {
+  const key = slimCountCacheKey({ categorySlugs, search });
+  const now = Date.now();
+  const cached = slimCountCache.get(key);
+  if (cached && now - cached.at < SLIM_COUNT_CACHE_TTL_MS) return cached.value;
   const db = getPgPool();
   const { conditions, values } = buildSlimPromptConditions({ categorySlugs, search });
   const result = await db.query({ text: `
@@ -579,7 +658,9 @@ async function countSlimPrompts({ categorySlugs = [], search = '' } = {}) {
     WHERE ${conditions.join(' AND ')}
   `, values });
 
-  return Number(result.rows[0]?.totalCount || 0);
+  const total = Number(result.rows[0]?.totalCount || 0);
+  slimCountCache.set(key, { value: total, at: now });
+  return total;
 }
 
 async function loadNewsletterWelcomePrompts() {
@@ -688,7 +769,26 @@ export async function getRandomSlimPrompts(count = 5, randomSeed = null) {
   return ids.map((id) => byId.get(id)).filter(Boolean);
 }
 
-export async function getSlimPromptsPage({
+// Short in-memory cache for listing pages: the same page is requested
+// repeatedly in bursts (bots, PSI, the category runtime loop), and every
+// miss runs a page query plus a count query against D1. 60s keeps listings
+// fresh enough (ISR pages are already hours old) while collapsing bursts.
+// Cleared by clearSlimPromptsCache()/clearPromptsCache() on admin changes.
+const SLIM_PAGE_CACHE_TTL_MS = 60 * 1000;
+const slimPageCache = new Map();
+
+function slimPageCacheKey({ categorySlugs = [], search = '', limit = 12, offset = 0, sort = 'latest', randomSeed = null } = {}) {
+  return JSON.stringify({
+    c: [...categorySlugs].sort(),
+    s: cleanText(search),
+    l: Math.min(Math.max(Number(limit) || 12, 1), 1000),
+    o: Math.max(0, Number(offset) || 0),
+    sort,
+    seed: Number.isSafeInteger(randomSeed) ? randomSeed : null,
+  });
+}
+
+async function loadSlimPromptsPage({
   categorySlugs = [],
   search = '',
   limit = 12,
@@ -725,6 +825,27 @@ export async function getSlimPromptsPage({
     prompts,
     totalCount: resolvedTotalCount,
   };
+}
+
+export async function getSlimPromptsPage({
+  categorySlugs = [],
+  search = '',
+  limit = 12,
+  offset = 0,
+  sort = 'latest',
+  randomSeed = null,
+} = {}) {
+  const key = slimPageCacheKey({ categorySlugs, search, limit, offset, sort, randomSeed });
+  const now = Date.now();
+  const cached = slimPageCache.get(key);
+  if (cached && now - cached.at < SLIM_PAGE_CACHE_TTL_MS) return cached.promise;
+  const promise = loadSlimPromptsPage({ categorySlugs, search, limit, offset, sort, randomSeed })
+    .catch((error) => {
+      slimPageCache.delete(key);
+      throw error;
+    });
+  slimPageCache.set(key, { promise, at: now });
+  return promise;
 }
 
 export async function getSlimPromptsByIds(ids = []) {
@@ -1148,6 +1269,8 @@ export function clearPromptsCache() {
   cachedHomepagePromptDataAt = 0;
   cachedSitemapRowsPromise = null;
   cachedSitemapRowsAt = 0;
+  slimCountCache.clear();
+  slimPageCache.clear();
   clearPromptSlugsCache();
   clearPromptFeedRowsCache();
   return undefined;
@@ -1889,6 +2012,8 @@ export function clearSlimPromptsCache() {
   cachedPublicPromptDirectoryAt = 0;
   cachedHomepagePromptDataPromise = null;
   cachedHomepagePromptDataAt = 0;
+  slimCountCache.clear();
+  slimPageCache.clear();
 }
 
 const ADMIN_PROMPTS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes for admin

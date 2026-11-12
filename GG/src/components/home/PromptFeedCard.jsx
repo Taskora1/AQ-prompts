@@ -139,12 +139,17 @@ export default function PromptFeedCard({
         ) : null}
       </Link>
       {showSave && promptId ? (
+        // Always visible, same light treatment in both modes: the dark
+        // backdrop (dark:bg-[#20212b]/95) vanished on dark photos, so the
+        // button only showed on hover. A white circle with a light ring
+        // reads on any image, light or dark, and on touch devices with no
+        // hover at all.
         <button
           type="button"
           onClick={handleSave}
           aria-pressed={saved}
           aria-label={saved ? `Remove ${title} from saved prompts` : `Save ${title}`}
-          className="absolute right-2 top-2 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-md transition hover:scale-105 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff9a73] dark:border-white/20 dark:bg-[#20212b]/95 dark:text-white"
+          className="absolute right-2 top-2 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-700 shadow-md ring-1 ring-black/10 transition hover:scale-105 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff9a73] dark:border-white/60"
         >
           <Bookmark className={`h-5 w-5 ${saved ? 'fill-[#ff6b35] text-[#c2410c]' : ''}`} aria-hidden="true" />
         </button>
