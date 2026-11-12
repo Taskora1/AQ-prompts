@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary-optimize';
+import { getPromptThumbnailPath, getPromptThumbnailSrcSet } from '@/lib/prompt-images';
 
 const BLUR_DATA_URL =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA0MCA1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iNTAiIGZpbGw9IiMxMTExMTgiLz48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iNTAiIGZpbGw9IiNmZjZiMzUiIG9wYWNpdHk9Ii4xOCIvPjwvc3ZnPg==';
@@ -108,6 +109,15 @@ export default function ImageCarousel({
 
   const optimizedActiveImage = optimizeCloudinaryUrl(activeImage, { width: imageWidth });
   const isCloudinaryImage = optimizedActiveImage.includes('res.cloudinary.com');
+  // Local prompt images: next.config.js sets images.unoptimized=true, so
+  // next/image serves the original file as-is (the 1122px detail hero into
+  // a 334px slot). The prebuild script already generates 640px + 360px
+  // thumbs for every /images/prompts file, so serve those with a srcSet
+  // instead — same pattern as PromptFeedCard (getPromptThumbnailSrcSet).
+  // Non-prompt local images (e.g. the placeholder) have no thumb and keep
+  // the next/image branch below.
+  const localThumbnailSrcSet = isCloudinaryImage ? null : getPromptThumbnailSrcSet(activeImage);
+  const localThumbnailSrc = localThumbnailSrcSet ? getPromptThumbnailPath(activeImage) : null;
   const srcSetMaxWidth = Math.max(responsiveMaxWidth, 360);
   const activeAlt = imageAltTexts?.[String(activeIndex)]
     || imageAltTexts?.[activeIndex]
@@ -137,6 +147,19 @@ export default function ImageCarousel({
           key={optimizedActiveImage}
           src={optimizedActiveImage}
           srcSet={buildCloudinarySrcSet(activeImage, srcSetMaxWidth)}
+          sizes={sizes}
+          alt={activeAlt}
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
+          decoding="async"
+          className={`absolute inset-0 h-full w-full ${imageClassName}`}
+          style={{ backgroundImage: `url("${BLUR_DATA_URL}")`, backgroundSize: 'cover' }}
+        />
+      ) : localThumbnailSrcSet ? (
+        <img
+          key={localThumbnailSrc}
+          src={localThumbnailSrc}
+          srcSet={localThumbnailSrcSet}
           sizes={sizes}
           alt={activeAlt}
           loading={priority ? 'eager' : 'lazy'}
