@@ -292,13 +292,16 @@ export default function PromptListingClient({
 
         {!activeCategory && (
           <nav className="-mx-4 mt-5 flex snap-x gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:mt-6 sm:px-0" aria-label="Prompt categories">
-            <Link href="/tools/ai-image-prompts" className="shrink-0 snap-start whitespace-nowrap rounded-full bg-[#ff6b35] px-4 py-2 text-sm font-semibold text-[#111118]">
+            <Link href="/tools/ai-image-prompts" prefetch={false} className="shrink-0 snap-start whitespace-nowrap rounded-full bg-[#ff6b35] px-4 py-2 text-sm font-semibold text-[#111118]">
               All
             </Link>
             {Object.values(PROMPT_CATEGORIES).map((category) => (
               <Link
                 key={category.slug}
                 href={`/tools/ai-image-prompts/${category.slug}`}
+                // prefetch={false}: the visible pills prefetched 12-18 KB
+                // category RSC payloads each, competing with the LCP image.
+                prefetch={false}
                 className="shrink-0 snap-start whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] transition-colors hover:border-[#ff6b35] hover:bg-[#ff6b35]/5"
               >
                 {category.label}
@@ -335,7 +338,13 @@ export default function PromptListingClient({
                   showSave
                   mobileTitleBelow
                   uniformAspectRatio
-                  priority={index === 0}
+                  // First ROW (not just the first card): on mobile the grid
+                  // is 2 columns, so the LCP element is whichever of the
+                  // first two cards paints last. With only index 0 eager,
+                  // the second card's lazy image won the LCP race on
+                  // category pages (Men: LCP element was card 2, lazy, no
+                  // priority hint). Both first-row cards load eagerly now.
+                  priority={index < 2}
                 />
               </Fragment>
             ))}

@@ -193,6 +193,11 @@ export default function HomeLanding({
                   <Link
                     key={category.slug}
                     href={`${PROMPT_BASE_PATH}/${category.slug}`}
+                    // prefetch={false}: these 5 chips sit in the hero viewport
+                    // and each prefetched a 16-23 KB category RSC payload
+                    // (~90 KB total) that competes with the hero LCP image
+                    // on Slow 4G. Category pages load on click instead.
+                    prefetch={false}
                     className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 font-semibold text-slate-700 transition hover:border-[#c2410c] hover:text-[#9a3412] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c] dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:text-[#ffb18d]"
                   >
                     {category.label}

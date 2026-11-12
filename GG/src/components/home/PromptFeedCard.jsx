@@ -84,6 +84,12 @@ export default function PromptFeedCard({
     }`}>
       <Link
         href={promptUrl}
+        // prefetch={false}: every visible card prefetched its detail page's
+        // RSC payload (12-13 KB each; ~60-150 KB of in-viewport prefetches
+        // on listing pages). On Slow 4G that bandwidth competes with the
+        // LCP image. A card tap is a deliberate navigation — the ~13 KB RSC
+        // fetch on click costs ~100ms and is a fair trade for LCP.
+        prefetch={false}
         className="block overflow-hidden rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ff9a73]"
       >
         <span className={`relative block overflow-hidden ${

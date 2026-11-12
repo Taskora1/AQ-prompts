@@ -59,6 +59,13 @@ export function NavbarDesktopControls() {
     <>
       <Link
         href="/tools/ai-image-prompts/favorites"
+        // prefetch={false}: the favorites page server-renders ALL 586 prompts
+        // (getSlimAllPrompts) so its RSC payload is ~253 KB. Next prefetches
+        // in-viewport links, so every page load downloaded 253 KB of
+        // favorites data before the LCP image — ~1.3s of Slow-4G bandwidth.
+        // Saved prompts is a rarely-visited personal page; it loads on click
+        // instead (one ~253 KB fetch then, not on every page).
+        prefetch={false}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#ff6b35]/35 bg-[#fff4ef] px-4 text-sm font-black text-[#b94713] shadow-sm transition hover:border-[#ff6b35] hover:bg-[#ff6b35] hover:text-white dark:border-[#ff6b35]/40 dark:bg-[#ff6b35]/15 dark:text-[#ff9b73] dark:hover:bg-[#ff6b35] dark:hover:text-white"
         aria-label={`Open saved prompts (${favoriteCount} saved)`}
         title="Open saved prompts"
@@ -89,6 +96,10 @@ export function NavbarMobileSavedLink() {
   return (
     <Link
       href="/tools/ai-image-prompts/favorites"
+      // prefetch={false}: same 253 KB favorites RSC payload as the desktop
+      // link — this bookmark icon is in the viewport on every mobile page,
+      // so it was prefetched on every mobile load, starving the LCP image.
+      prefetch={false}
       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#e5e7eb] bg-white/90 text-[#4b5563] shadow-[0_12px_30px_rgba(15,23,42,0.08)] transition hover:border-[#ff6b35] hover:text-[#c2410c] dark:border-white/10 dark:bg-[#0a0a0f]/90 dark:text-[#9ca3af] dark:hover:border-[#ff6b35] dark:hover:text-[#ff9b73]"
       aria-label={`Open saved prompts (${favoriteCount} saved)`}
       title={`Saved prompts (${favoriteCount})`}
