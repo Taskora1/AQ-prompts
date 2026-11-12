@@ -161,12 +161,13 @@ const nextConfig = {
     // compressed, ~23 KB unused on the homepage) into every HTML page.
     // External stylesheets are cached across pages instead, so keep it off.
     inlineCss: false,
-    // optimizeCss (critters): inlines only the above-the-fold CSS into the
-    // HTML and loads the full stylesheet asynchronously, so the two CSS
-    // files stop blocking first paint (PageSpeed: ~580–650ms render-blocking
-    // on every key page). Added for the 95+ mobile target, 2026-11-12.
-    // If a future build breaks on Tailwind syntax, remove this flag first.
-    optimizeCss: true,
+    // optimizeCss (critters) was tried for the 95+ mobile target, 2026-11-12,
+    // and REMOVED 2026-11-12 (batch 2): it is a no-op on App Router. With the
+    // flag on, the live homepage still shipped two plain render-blocking
+    // <link rel="stylesheet"> tags and zero inline <style> blocks, so
+    // critters inlined nothing. Do not re-add it. The render-blocking CSS
+    // is instead shrunk (dead rules removed) and the small loader sheet is
+    // inlined by hand in app/layout.jsx (LOADER_INLINE_CSS).
     optimizePackageImports: ['lucide-react'],
     // The database is reached over HTTP (Neon serverless driver), so
     // there is no per-worker connection pool to cap; worker count is

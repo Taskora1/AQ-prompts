@@ -10,6 +10,12 @@ const outputDir = path.join(projectRoot, 'public', 'images', 'prompt-thumbs');
 const manifestPath = path.join(outputDir, '.thumbnail-manifest.json');
 const supportedExtensions = new Set(['.webp', '.jpg', '.jpeg', '.png']);
 const targetWidth = 640;
+// Small variant for grid cards: cards display at most ~292-378 CSS px, so a
+// 360px-wide thumb lets low-DPR browsers download ~60% fewer bytes while
+// high-DPR browsers still get the 640px file via srcSet (see
+// getPromptThumbnailSrcSet in src/lib/prompt-images.js). Generated at build
+// time by prebuild, so no binary files need to be committed for it.
+const smallTargetWidth = 360;
 const quality = 58;
 
 async function pathExists(filePath) {
@@ -70,31 +76,42 @@ async function writeManifest(manifest) {
 // Thumbnail generation
 // ---------------------------------------------------------------------------
 
+async function generateVariant(sourcePath, outputPath, width) {
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await sharp(sourcePath)
+    .rotate()
+    .resize({ width, withoutEnlargement: true })
+    .webp({ quality, effort: 5 })
+    .toFile(outputPath);
+}
+
 async function generateThumbnail(sourcePath, manifest) {
   const relativePath = path.relative(sourceDir, sourcePath);
   const parsed = path.parse(relativePath);
   const outputPath = path.join(outputDir, parsed.dir, `${parsed.name}.webp`);
+  const smallOutputPath = path.join(outputDir, parsed.dir, `${parsed.name}-360.webp`);
 
-  // --- Freshness check: content-hash manifest ---
+  // --- Freshness check: content-hash manifest + both variants on disk ---
   const sourceHash = await fileHash(sourcePath);
   const manifestEntry = manifest[relativePath];
+  const hashMatches = manifestEntry && manifestEntry.hash === sourceHash;
 
-  if (manifestEntry && manifestEntry.hash === sourceHash) {
-    // Hash matches — verify the output file also exists on disk.
-    const outputExists = await pathExists(outputPath);
-    if (outputExists) {
-      return { skipped: true, outputPath };
-    }
-    // Output missing despite hash match — fall through to regenerate.
+  const mainExists = await pathExists(outputPath);
+  const smallExists = await pathExists(smallOutputPath);
+  if (hashMatches && mainExists && smallExists) {
+    return { skipped: true, outputPath };
   }
 
-  // --- Regenerate ---
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await sharp(sourcePath)
-    .rotate()
-    .resize({ width: targetWidth, withoutEnlargement: true })
-    .webp({ quality, effort: 5 })
-    .toFile(outputPath);
+  // --- Regenerate whichever variant is missing or stale ---
+  // A changed source regenerates both; a fresh source with only the small
+  // variant missing (e.g. first build after this was added) regenerates
+  // just the small one.
+  if (!hashMatches || !mainExists) {
+    await generateVariant(sourcePath, outputPath, targetWidth);
+  }
+  if (!hashMatches || !smallExists) {
+    await generateVariant(sourcePath, smallOutputPath, smallTargetWidth);
+  }
 
   // Update manifest entry.
   manifest[relativePath] = { hash: sourceHash };

@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { getCloudinaryResponsiveImage, optimizeCloudinaryUrl } from '@/lib/cloudinary-optimize';
 import { FAVORITES_CHANGED_EVENT, isFavoritePrompt, toggleFavoritePrompt } from '@/lib/favorites';
 import SaveConsentNotice from '@/components/SaveConsentNotice';
-import { getPromptThumbnailPath } from '@/lib/prompt-images';
+import { getPromptThumbnailPath, getPromptThumbnailSrcSet } from '@/lib/prompt-images';
 import { getPromptUrl } from '@/lib/prompt-constants';
 import { useCopyGate } from '@/components/CopyGate';
 
@@ -37,6 +37,11 @@ export default function PromptFeedCard({
     widths: [160, 200, 240, 320, 360, 480, 640, 720, 800, 960, 1080],
     quality: 'auto',
   });
+  // Local thumbs have no Cloudinary srcSet, so fall back to the generated
+  // 360w/640w pair (see getPromptThumbnailSrcSet). The `sizes` prop already
+  // describes the card width, so the browser picks the small file at low
+  // DPR instead of always downloading the 640px thumb.
+  const localSrcSet = getPromptThumbnailSrcSet(thumbnail);
   const { copied, copyGate, requestCopy } = useCopyGate({ promptId });
 
   async function handleCopy(event) {
@@ -86,7 +91,7 @@ export default function PromptFeedCard({
         }`}>
           <img
             src={optimizeCloudinaryUrl(thumbnail, { width: 360, quality: 'auto' })}
-            srcSet={responsiveImage?.srcSet}
+            srcSet={responsiveImage?.srcSet || localSrcSet}
             alt={imageAlt || title}
             sizes={sizes}
             loading={priority ? 'eager' : 'lazy'}

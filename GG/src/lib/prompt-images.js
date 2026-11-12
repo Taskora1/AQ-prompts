@@ -77,3 +77,23 @@ export function getPromptThumbnailPath(imagePath = '') {
 export function getPromptThumbnailPaths(images = []) {
   return images.map(getPromptThumbnailPath).filter(Boolean);
 }
+
+// Responsive srcSet for local prompt thumbs. The thumbnail generator also
+// writes a 360px-wide variant (`<name>-360.webp`) next to each 640px thumb,
+// so a browser can pick the small file at low DPR / small viewports and the
+// full thumb at high DPR. Returns null for Cloudinary images (those already
+// get a responsive srcSet from getCloudinaryResponsiveImage) and for any
+// path that is not a local prompt thumb.
+export function getPromptThumbnailSrcSet(imagePath = '') {
+  const thumbnail = getPromptThumbnailPath(imagePath);
+
+  if (
+    !thumbnail.startsWith('/images/prompt-thumbs/')
+    || !thumbnail.toLowerCase().endsWith('.webp')
+  ) {
+    return null;
+  }
+
+  const small = thumbnail.replace(/\.webp$/i, '-360.webp');
+  return `${small} 360w, ${thumbnail} 640w`;
+}

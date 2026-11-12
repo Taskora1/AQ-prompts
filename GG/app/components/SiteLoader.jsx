@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { LOADER_LOGO_DATA_URI } from '@/lib/brand-logos';
-import './site-loader.css';
+
+// Loader styles are inlined in app/layout.jsx (LOADER_INLINE_CSS), not
+// imported here, so the splash costs no render-blocking stylesheet request.
 
 /**
  * SiteLoader — AQPrompts website loading animation (modern look).
@@ -16,8 +18,10 @@ import './site-loader.css';
  *
  * Setup:
  *  1. Use the AQPrompts logo in the repo's public/ folder.
- *  2. Copy this file to app/components/SiteLoader.jsx
- *     and site-loader.css to app/components/site-loader.css
+ *  2. Copy this file to app/components/SiteLoader.jsx.
+ *     The loader styles live inlined in app/layout.jsx (LOADER_INLINE_CSS),
+ *     not in a separate stylesheet, so the splash costs no render-blocking
+ *     request.
  *  3. In app/layout.tsx, inside <body>, render <SiteLoader /> before {children}.
  */
 export default function SiteLoader() {
