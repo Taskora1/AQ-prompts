@@ -121,6 +121,17 @@
   border-radius: 0;
 }
 
+/* Prompt block — explicit so the prompt text can never render light-on-white */
+.tiptap-editor .ProseMirror pre.prompt-block {
+  background: #1d2327;
+  color: #f0f0f1;
+}
+
+.tiptap-editor .ProseMirror pre.prompt-block code {
+  background: none;
+  color: inherit;
+}
+
 /* Blockquote */
 .tiptap-editor .ProseMirror blockquote {
   border-left: 4px solid #2271b1;

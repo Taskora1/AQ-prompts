@@ -349,6 +349,31 @@ const BlockEditor = forwardRef(function BlockEditor(
     },
   });
 
+  /* ── Force node views to re-render after a programmatic content load ──
+     TipTap React node views (the prompt-block card) can render with empty
+     content after setContent until the editor view rebuilds. Rebuilding
+     the view right after setContent (view.updateState(view.state)) makes
+     the content show in normal mode too. NOTE: fullscreen does NOT fix
+     this — live evidence (2026-11-15) shows toggling fullscreen makes
+     prompt boxes VANISH, because EditorContent unmounts and TipTap
+     clears the node views on unmount; the render below keeps one tree
+     so the toggle never unmounts EditorContent. */
+  const refreshEditorView = useCallback((ed) => {
+    const view = ed?.view;
+    if (!view) return;
+    view.updateState(view.state);
+  }, []);
+
+  /* ── Rebuild node views once when the editor mounts with content ──
+     The setContent paths below only run when the value changes after
+     mount. A post opened with its content already in `value` never
+     passes through them, so refresh the view once on mount too — this
+     is the path hit when opening a saved post. */
+  useEffect(() => {
+    if (!editor) return;
+    refreshEditorView(editor);
+  }, [editor, refreshEditorView]);
+
   /* ── Sync external value changes ── */
   const prevValueRef = useRef(value);
   useEffect(() => {
@@ -358,7 +383,8 @@ const BlockEditor = forwardRef(function BlockEditor(
     // Only update if the editor content genuinely differs
     if (value === editor.getHTML()) return;
     editor.commands.setContent(value || '', false);
-  }, [value, editor]);
+    refreshEditorView(editor);
+  }, [value, editor, refreshEditorView]);
 
   /* ── Imperative handle ── */
   useImperativeHandle(ref, () => ({
@@ -366,6 +392,7 @@ const BlockEditor = forwardRef(function BlockEditor(
     setContent: (html) => {
       editor?.commands.setContent(html || '', false);
       prevValueRef.current = html || '';
+      refreshEditorView(editor);
     },
   }));
 
@@ -567,60 +594,54 @@ const BlockEditor = forwardRef(function BlockEditor(
   );
 
   /* ──────────────────────
-     Fullscreen wrapper
-     ────────────────────── */
-  if (isFullscreen) {
-    return (
-      <>
-        <div className="fixed inset-0 z-[9998] flex flex-col bg-[#f0f0f1]">
-          <div className="flex items-center justify-between border-b border-[#dcdcde] bg-white px-5 py-3">
-            <h2 className="text-sm font-semibold text-[#1d2327]">Block Editor — Fullscreen</h2>
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(false)}
-              className="inline-flex h-9 items-center gap-1.5 rounded border border-[#8c8f94] bg-white px-3 text-xs font-semibold text-[#2c3338] transition hover:border-[#2271b1] hover:text-[#2271b1]"
-            >
-              <Minimize2 className="h-3.5 w-3.5" />
-              Exit fullscreen
-            </button>
-          </div>
-          {renderToolbar()}
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-white">
-            <div className="mx-auto w-full max-w-3xl flex-1 p-4">
-              {editorContent}
-            </div>
-          </div>
-        </div>
-        <LinkDialog
-          open={linkDialogOpen}
-          onClose={closeLinkDialog}
-          onInsert={setLink}
-          initialUrl={linkUrl}
-        />
-        <ImageAltDialog
-          open={imageAltDialogOpen}
-          onClose={closeImageAltDialog}
-          onInsert={insertImagesWithAlt}
-          imageCount={pendingImageUrls.length}
-        />
-        <MediaLibrary
-          open={mediaOpen}
-          onClose={() => setMediaOpen(false)}
-          onSelect={handleMediaSelect}
-          multiple
-          insertMode="html"
-        />
-      </>
-    );
-  }
-
-  /* ──────────────────────
-     Inline (normal) mode
-     ────────────────────── */
+     Render — ONE tree for both modes (do NOT split fullscreen into a
+     separate early return)
+     ──────────────────────
+     Live evidence (2026-11-15, Birthday post): in NORMAL mode all 12
+     prompt boxes render fine; toggling FULLSCREEN makes every prompt
+     box VANISH (blank white gap, no box/label/Copy button). Root cause:
+     the old code returned a different tree for fullscreen, so React
+     unmounted and remounted <EditorContent> on every toggle. TipTap's
+     EditorContent clears all node views on unmount
+     (view.setProps({ nodeViews: {} })), and the new instance is
+     constructed while the old portal registry still exists, so the
+     remount never re-subscribes the new registry — the prompt-block
+     React node views are never rendered again. Keeping one tree and
+     toggling only class names means EditorContent never unmounts, so
+     the node views survive entering and exiting fullscreen. */
   return (
-    <div className={`overflow-hidden rounded border border-[#8c8f94] transition focus-within:border-[#2271b1] focus-within:ring-1 focus-within:ring-[#2271b1] ${className}`}>
+    <div
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-[9998] flex flex-col bg-[#f0f0f1]'
+          : `overflow-hidden rounded border border-[#8c8f94] transition focus-within:border-[#2271b1] focus-within:ring-1 focus-within:ring-[#2271b1] ${className}`
+      }
+    >
+      {/* Fullscreen header — always rendered (hidden in normal mode) so
+          the tree shape never changes across the toggle. */}
+      <div
+        className={
+          isFullscreen
+            ? 'flex items-center justify-between border-b border-[#dcdcde] bg-white px-5 py-3'
+            : 'hidden'
+        }
+      >
+        <h2 className="text-sm font-semibold text-[#1d2327]">Block Editor — Fullscreen</h2>
+        <button
+          type="button"
+          onClick={() => setIsFullscreen(false)}
+          className="inline-flex h-9 items-center gap-1.5 rounded border border-[#8c8f94] bg-white px-3 text-xs font-semibold text-[#2c3338] transition hover:border-[#2271b1] hover:text-[#2271b1]"
+        >
+          <Minimize2 className="h-3.5 w-3.5" />
+          Exit fullscreen
+        </button>
+      </div>
       {renderToolbar()}
-      {editorContent}
+      <div className={isFullscreen ? 'flex min-h-0 flex-1 flex-col overflow-auto bg-white' : undefined}>
+        <div className={isFullscreen ? 'mx-auto w-full max-w-3xl flex-1 p-4' : undefined}>
+          {editorContent}
+        </div>
+      </div>
       <LinkDialog
         open={linkDialogOpen}
         onClose={closeLinkDialog}
