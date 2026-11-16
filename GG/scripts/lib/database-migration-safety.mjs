@@ -69,6 +69,9 @@ export const DATABASE_MIGRATION_OPERATIONS = Object.freeze({
   'create-activity-log-table.mjs': [
     'create the admin activity log table and indexes when missing',
   ],
+  'create-agent-messages-table.mjs': [
+    'create the agent messages table and indexes when missing',
+  ],
   'create-admin-users.mjs': [
     'create the admin users table when missing',
     'insert or update the explicitly configured admin account',

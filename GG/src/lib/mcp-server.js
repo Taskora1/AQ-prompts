@@ -19,6 +19,7 @@ import {
   publishBlogDraft,
   updateBlogDraft,
 } from './mcp-blog-tools.js';
+import { McpChatToolError, listAgentMessages, sendAgentMessage } from './mcp-chat-tools.js';
 import { McpImageUploadError } from './mcp-image-upload.js';
 import { McpAuthorizationError } from './mcp-oauth-db.js';
 
@@ -124,6 +125,13 @@ const updateBlogDraftSchema = z.object({
   id: z.number().int().positive(),
   ...blogDraftFields,
 }).strict();
+const chatListSchema = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
+  beforeId: z.number().int().positive().optional(),
+}).strict();
+const chatSendSchema = z.object({
+  body: z.string().trim().min(1).max(5000),
+}).strict();
 
 function resultContent(value) {
   return {
@@ -136,6 +144,7 @@ function toolFailure(error) {
     !(error instanceof McpToolError)
     && !(error instanceof McpAuthorizationError)
     && !(error instanceof McpBlogToolError)
+    && !(error instanceof McpChatToolError)
     && !(error instanceof McpImageUploadError)
   ) {
     console.error('[MCP] Tool operation failed.');
@@ -143,6 +152,7 @@ function toolFailure(error) {
   const message = error instanceof McpToolError
     || error instanceof McpAuthorizationError
     || error instanceof McpBlogToolError
+    || error instanceof McpChatToolError
     || error instanceof McpImageUploadError
     ? error.message
     : 'The operation could not be completed. No success is implied; check the prompt and retry.';
@@ -274,6 +284,22 @@ export function createMcpServer(authentication = null) {
     'Publish an owned or explicitly assigned blog draft. Requires a separate can_publish_blog permission.',
     blogGetSchema,
     publishBlogDraft,
+    authentication,
+  );
+  registerTool(
+    server,
+    'list_agent_messages',
+    'Read the admin agent chat: the two blog lanes and the supervisor coordinate here. Returns the newest messages first; pass beforeId (the oldest id seen) to page back. Reading marks other participants\' messages as seen.',
+    chatListSchema,
+    listAgentMessages,
+    authentication,
+  );
+  registerTool(
+    server,
+    'send_agent_message',
+    'Post a message to the admin agent chat. The sender is your linked admin account, resolved from your verified OAuth subject — you cannot post as anyone else. Use it to claim a keyword, report progress, reply to the supervisor, or post a score.',
+    chatSendSchema,
+    sendAgentMessage,
     authentication,
   );
 
