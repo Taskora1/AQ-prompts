@@ -755,18 +755,39 @@ body.has-sticky-bottom-ad {
   .article-prose .prompt-code-shell {
     position: relative;
     padding: 1.25rem;
-    border: 1px solid #111827;
+    border: 1px solid var(--border);
     border-radius: 1.5rem;
-    background: #0b1224;
+    background: var(--bg-card);
+  }
+
+  .article-prose .article-prompt-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .article-prose .article-prompt-heading {
+    min-width: 0;
+    flex: 1 1 12rem;
   }
 
   .article-prose .article-prompt-title {
-    margin: 0 8.5rem 1rem 0;
-    color: #ff6b35;
+    margin: 0;
+    color: var(--text-primary);
     font-size: 1.125rem;
     font-weight: 800;
     line-height: 1.4;
     text-align: left;
+  }
+
+  .article-prose .article-prompt-bestfor {
+    margin: 0.3rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
   }
 
   .article-prose .article-code-actions {
@@ -866,16 +887,16 @@ body.has-sticky-bottom-ad {
     padding: 1.5rem;
     border: 0;
     border-radius: 1rem;
-    background: #121a2b;
+    background: var(--bg-secondary);
     overflow-y: auto;
-    scrollbar-color: #334155 #121a2b;
+    scrollbar-color: var(--border) var(--bg-secondary);
   }
 
   .article-prose .prompt-code-shell pre code {
-    color: #f8fafc;
+    color: var(--text-primary);
     font-size: 1rem;
-    font-weight: 700;
-    line-height: 1.75;
+    font-weight: 500;
+    line-height: 1.9;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -883,40 +904,60 @@ body.has-sticky-bottom-ad {
   .article-prose .prompt-code-shell .article-copy-button {
     position: static;
     display: inline-flex;
-    width: 100%;
-    min-height: 3.25rem;
-    margin: 0.9rem 0 0;
-    border: 1px solid #ff6b35;
-    border-radius: 0.75rem;
-    background: #ff6b35;
-    color: #111118;
-    font-size: 1rem;
-    font-weight: 900;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.4rem;
+    width: auto;
+    min-height: 2.25rem;
+    margin: 0;
+    border: 1px solid rgba(255, 107, 53, 0.4);
+    border-radius: 999px;
+    background: rgba(255, 107, 53, 0.12);
+    color: #ff6b35;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.5rem 0.9rem;
     letter-spacing: 0;
     text-transform: none;
   }
 
   .article-prose .prompt-code-shell .article-copy-button:hover,
   .article-prose .prompt-code-shell .article-copy-button:focus-visible {
-    border-color: #ea580c;
-    background: #ea580c;
-    color: #111118;
-    outline: 3px solid rgba(255, 107, 53, 0.4);
-    outline-offset: 2px;
-    transform: translateY(-1px);
+    border-color: rgba(255, 107, 53, 0.65);
+    background: rgba(255, 107, 53, 0.22);
+    color: #ff6b35;
+    outline: none;
+    transform: none;
+  }
+
+  .article-prose .prompt-code-shell .article-copy-button .article-copy-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .article-prose .prompt-code-shell .article-copy-button .article-copy-icon-check {
+    display: none;
   }
 
   .article-prose .prompt-code-shell .article-copy-button.is-copied {
-    border-color: #86efac;
-    background: #86efac;
-    color: #052e16;
+    border-color: #16a34a;
+    background: #16a34a;
+    color: #ffffff;
   }
 
   .article-prose .prompt-code-shell .article-copy-button.is-copied:hover,
   .article-prose .prompt-code-shell .article-copy-button.is-copied:focus-visible {
-    border-color: #86efac;
-    background: #86efac;
-    color: #052e16;
+    border-color: #16a34a;
+    background: #16a34a;
+    color: #ffffff;
+  }
+
+  .article-prose .prompt-code-shell .article-copy-button.is-copied .article-copy-icon-copy {
+    display: none;
+  }
+
+  .article-prose .prompt-code-shell .article-copy-button.is-copied .article-copy-icon-check {
+    display: inline-flex;
   }
 
   .article-prose .prompt-code-shell .article-copy-button.is-copy-error,
@@ -925,6 +966,25 @@ body.has-sticky-bottom-ad {
     border-color: #fca5a5;
     background: #fca5a5;
     color: #450a0a;
+  }
+
+  .article-prose .article-copy-caption {
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.9rem 0 0;
+    color: #16a34a;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .article-prose .prompt-code-shell.is-copied .article-copy-caption {
+    display: flex;
+  }
+
+  [data-theme="dark"] .article-prose .article-copy-caption {
+    color: #86efac;
   }
 
   .article-prose .article-gallery-disclosures {

@@ -27,7 +27,7 @@ import { useCopyGate } from '../components/CopyGate';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { formatStableDate } from '../lib/utils';
-import { sanitizeBlogBlocks } from '../lib/blog-content';
+import { sanitizeBlogBlocks, enhancePromptBlocks } from '../lib/blog-content';
 import { isAuditedNoIndexPromptSlug } from '../lib/content-indexing-policy';
 import { BLOG_POST_COVER_SIZES, getBlogPostCoverImage } from '../lib/article';
 
@@ -229,12 +229,12 @@ function convertInlineFaqToAccordion(html = '') {
 // accordion styles live here. This <style> renders after the global
 // stylesheet, so equal-specificity rules win over it.
 const POST_PAGE_STYLES = `
-.article-prose .prompt-code-shell { background: #101a30; }
-.article-prose .prompt-code-shell pre { background: #16223c; }
-.article-prose .prompt-code-shell pre code { color: #ffffff; font-size: 1rem; font-weight: 600; line-height: 1.8; }
+.article-prose .prompt-code-shell { background: var(--bg-card); border-color: var(--border); }
+.article-prose .prompt-code-shell pre { background: var(--bg-secondary); }
+.article-prose .prompt-code-shell pre code { color: var(--text-primary); font-size: 1rem; font-weight: 500; line-height: 1.9; }
 .article-prose .article-code-shell pre code { font-size: 0.95rem; line-height: 1.75; }
 @media (min-width: 1024px) {
-  .article-prose[data-prompt-gallery="true"] > div > .article-gallery-prompt-card .prompt-code-shell pre code { font-size: 1rem; line-height: 1.8; }
+  .article-prose[data-prompt-gallery="true"] > div > .article-gallery-prompt-card .prompt-code-shell pre code { font-size: 1rem; line-height: 1.9; }
 }
 .article-faq-list { margin-top: 2rem; overflow: hidden; border: 1px solid var(--border); border-radius: 1rem; background: var(--bg-card); }
 .article-faq-item { border-bottom: 1px solid var(--border); }
@@ -265,23 +265,11 @@ function renderArticleBlocksHtml(post) {
     return !title || normalizedHeading === title ? '' : match.replace(/^(\s*)<h1\b/i, '$1<h2').replace(/<\/h1>\s*$/i, '</h2>');
   });
 
-  const withPromptBlocks = htmlWithoutDuplicateTitle.replace(/<pre([^>]*)><code([^>]*)>([\s\S]*?)<\/code><\/pre>/gi, (match, preAttrs, codeAttrs, codeHtml) => {
-    const plainCode = String(codeHtml || '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const isPromptBlock = /\bclass=["'][^"']*\bprompt-block\b/i.test(`${preAttrs} ${codeAttrs}`);
-    const label = isPromptBlock || plainCode.length > 120 || /reference image|prompt/i.test(plainCode)
-      ? 'Copy Prompt'
-      : 'Copy';
-
-    if (isPromptBlock) {
-      return `<div class="article-code-shell prompt-code-shell"><h3 class="article-prompt-title">Prompt</h3><pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre><button type="button" class="article-copy-button" data-copy-code aria-label="${label}" aria-live="polite">${label}</button></div>`;
-    }
-
-    return `<div class="article-code-shell"><button type="button" class="article-copy-button" data-copy-code aria-label="${label}">${label}</button><pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre></div>`;
-  });
+  // Prompt blocks become the theme-aware copy boxes (title + "Best for"
+  // in the header, pill Copy button, persistent "Copied — <title>"
+  // caption); plain code blocks keep the small Copy button above the code.
+  // Both shapes live in enhancePromptBlocks (src/lib/blog-content.js).
+  const withPromptBlocks = enhancePromptBlocks(htmlWithoutDuplicateTitle);
 
   // Render-time presentation fixes only; wording and prompts are untouched.
   return dropRedundantTableColumns(convertInlineFaqToAccordion(withPromptBlocks));
@@ -296,7 +284,9 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
   const [copied, setCopied] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [freePrompts, setFreePrompts] = useState([]);
-  const { copyGate, requestCopy: requestPromptCopy } = useCopyGate();
+  // Silent: article prompt boxes confirm with their own persistent
+  // "Copied — <title>" caption, so the global toast stays out of the way.
+  const { copyGate, requestCopy: requestPromptCopy } = useCopyGate({ silent: true });
 
   useEffect(() => {
     if (!initialPayload?.post) {
@@ -549,9 +539,20 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
       const codeElement = shell?.querySelector('code');
       const text = codeElement?.textContent?.trim();
 
-      const originalLabel = button.dataset.copyLabel || button.textContent || 'Copy';
+      // Prompt-box buttons hold an icon + a label span; plain code-block
+      // buttons are bare text. Update the span when it exists so the icon
+      // survives the state change.
+      const labelEl = button.querySelector('.article-copy-label');
+      const originalLabel = button.dataset.copyLabel || labelEl?.textContent || button.textContent || 'Copy';
       button.dataset.copyLabel = originalLabel;
+      const copyTitle = button.dataset.copyTitle || '';
+      const copiedAriaLabel = copyTitle ? `Copied — ${copyTitle}` : 'Copied';
       if (button.copyFeedbackTimer) window.clearTimeout(button.copyFeedbackTimer);
+
+      const setLabel = (value) => {
+        if (labelEl) labelEl.textContent = value;
+        else button.textContent = value;
+      };
 
       try {
         if (!text) {
@@ -563,24 +564,32 @@ const SinglePostPage = ({ initialPayload = null, slug = '' }) => {
           throw new Error('The article prompt block could not be copied.');
         }
 
-        button.textContent = 'Copied';
-        button.setAttribute('aria-label', 'Copied');
+        setLabel('Copied');
+        button.setAttribute('aria-label', copiedAriaLabel);
         button.classList.add('is-copied');
         button.classList.remove('is-copy-error');
-        button.copyFeedbackTimer = window.setTimeout(() => {
-          button.textContent = originalLabel;
-          button.setAttribute('aria-label', originalLabel);
-          button.classList.remove('is-copied');
-          button.copyFeedbackTimer = null;
-        }, 1600);
+        shell?.classList.add('is-copied');
+        // Prompt boxes keep the copied state and the "Copied — <title>"
+        // caption, so the reader can see which prompts they already took.
+        // Plain code blocks revert to Copy after a beat.
+        if (!shell?.classList.contains('prompt-code-shell')) {
+          button.copyFeedbackTimer = window.setTimeout(() => {
+            setLabel(originalLabel);
+            button.setAttribute('aria-label', originalLabel);
+            button.classList.remove('is-copied');
+            shell?.classList.remove('is-copied');
+            button.copyFeedbackTimer = null;
+          }, 1600);
+        }
       } catch (error) {
         console.error('Unable to copy article code block.', error);
-        button.textContent = 'Copy failed';
+        setLabel('Copy failed');
         button.setAttribute('aria-label', 'Copy failed. Select the prompt text and copy it manually.');
         button.classList.remove('is-copied');
         button.classList.add('is-copy-error');
+        shell?.classList.remove('is-copied');
         button.copyFeedbackTimer = window.setTimeout(() => {
-          button.textContent = originalLabel;
+          setLabel(originalLabel);
           button.setAttribute('aria-label', originalLabel);
           button.classList.remove('is-copy-error');
           button.copyFeedbackTimer = null;

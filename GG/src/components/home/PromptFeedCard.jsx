@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bookmark, Check, Copy } from 'lucide-react';
+import { Bookmark, Eye, Heart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { getCloudinaryResponsiveImage, optimizeCloudinaryUrl } from '@/lib/cloudinary-optimize';
@@ -9,7 +9,7 @@ import { FAVORITES_CHANGED_EVENT, isFavoritePrompt, toggleFavoritePrompt } from 
 import SaveConsentNotice from '@/components/SaveConsentNotice';
 import { getPromptThumbnailPath, getPromptThumbnailSrcSet } from '@/lib/prompt-images';
 import { getPromptUrl } from '@/lib/prompt-constants';
-import { useCopyGate } from '@/components/CopyGate';
+import { formatCompactCount } from '@/lib/prompt-card';
 
 export default function PromptFeedCard({
   promptId,
@@ -19,7 +19,8 @@ export default function PromptFeedCard({
   slug,
   href,
   subtitle,
-  promptText = '',
+  viewCount = 0,
+  likeCount = 0,
   showSave = false,
   mobileTitleBelow = false,
   uniformAspectRatio = false,
@@ -42,18 +43,6 @@ export default function PromptFeedCard({
   // describes the card width, so the browser picks the small file at low
   // DPR instead of always downloading the 640px thumb.
   const localSrcSet = getPromptThumbnailSrcSet(thumbnail);
-  const { copied, copyGate, requestCopy } = useCopyGate({ promptId });
-
-  async function handleCopy(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!promptText) return;
-    try {
-      await requestCopy(promptText);
-    } catch {
-      // CopyGate handles visible subscribe/copy errors.
-    }
-  }
 
   useEffect(() => {
     if (!showSave || !promptId) return undefined;
@@ -138,6 +127,18 @@ export default function PromptFeedCard({
           </span>
         ) : null}
       </Link>
+      {viewCount > 0 || likeCount > 0 ? (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-2 text-xs text-slate-500 dark:text-slate-400 sm:px-3.5">
+          <span className="inline-flex items-center gap-1">
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            {formatCompactCount(viewCount)} {viewCount === 1 ? 'view' : 'views'}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Heart className="h-3.5 w-3.5" aria-hidden="true" />
+            {formatCompactCount(likeCount)} {likeCount === 1 ? 'like' : 'likes'}
+          </span>
+        </p>
+      ) : null}
       {showSave && promptId ? (
         // Always visible, same light treatment in both modes: the dark
         // backdrop (dark:bg-[#20212b]/95) vanished on dark photos, so the
@@ -154,22 +155,6 @@ export default function PromptFeedCard({
           <Bookmark className={`h-5 w-5 ${saved ? 'fill-[#ff6b35] text-[#c2410c]' : ''}`} aria-hidden="true" />
         </button>
       ) : null}
-      {promptText ? (
-        <button
-          type="button"
-          onClick={handleCopy}
-          aria-label={copied ? 'Prompt copied' : `Copy ${title} prompt`}
-          title={copied ? 'Copied!' : 'Copy prompt'}
-          className={`absolute left-2 top-2 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border shadow-md transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff9a73] ${
-            copied
-              ? 'border-emerald-500/40 bg-emerald-500 text-white'
-              : 'border-white/70 bg-[#ff6b35] text-white hover:bg-[#e85d28] dark:border-white/20'
-          }`}
-        >
-          {copied ? <Check className="h-5 w-5" aria-hidden="true" /> : <Copy className="h-5 w-5" aria-hidden="true" />}
-        </button>
-      ) : null}
-      {copyGate}
       <SaveConsentNotice open={showSaveConsentNotice} onClose={() => setShowSaveConsentNotice(false)} />
     </article>
   );

@@ -89,7 +89,7 @@ function markFreeCopyUsed(copyCount) {
   }
 }
 
-export function useCopyGate({ onCopied, successDuration = 2200, promptId } = {}) {
+export function useCopyGate({ onCopied, successDuration = 2200, promptId, silent = false } = {}) {
   const noticeTimeoutRef = useRef(null);
   const copiedTimeoutRef = useRef(null);
   const pendingCopyRef = useRef('');
@@ -108,16 +108,20 @@ export function useCopyGate({ onCopied, successDuration = 2200, promptId } = {})
 
   const markCopied = useCallback(() => {
     setCopied(true);
-    setNotice(SUCCESS_MESSAGE);
+    // Silent callers (article prompt boxes) confirm with their own
+    // per-box caption, so the global toast stays out of the way.
+    if (!silent) setNotice(SUCCESS_MESSAGE);
     trackCopyEvent('prompt_copied');
     onCopied?.();
 
     if (noticeTimeoutRef.current) window.clearTimeout(noticeTimeoutRef.current);
     if (copiedTimeoutRef.current) window.clearTimeout(copiedTimeoutRef.current);
 
-    noticeTimeoutRef.current = window.setTimeout(() => setNotice(''), successDuration);
+    if (!silent) {
+      noticeTimeoutRef.current = window.setTimeout(() => setNotice(''), successDuration);
+    }
     copiedTimeoutRef.current = window.setTimeout(() => setCopied(false), successDuration);
-  }, [onCopied, successDuration]);
+  }, [onCopied, successDuration, silent]);
 
   const requestCopy = useCallback(async (text) => {
     const promptText = String(text || '').trim();

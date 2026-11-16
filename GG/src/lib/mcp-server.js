@@ -131,6 +131,9 @@ const chatListSchema = z.object({
 }).strict();
 const chatSendSchema = z.object({
   body: z.string().trim().min(1).max(5000),
+  // Lanes send chat/report only; moderator-only types are rejected by
+  // sendAgentMessage (the supervisor posts those from the web UI).
+  type: z.enum(['chat', 'report']).optional(),
 }).strict();
 
 function resultContent(value) {

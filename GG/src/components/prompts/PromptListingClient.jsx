@@ -333,7 +333,8 @@ export default function PromptListingClient({
                   image={prompt.image || prompt.images?.[0] || '/images/placeholder.webp'}
                   imageAlt={prompt.imageAlt || prompt.title || ''}
                   slug={prompt.slug || ''}
-                  promptText={prompt.prompt || ''}
+                  viewCount={prompt.viewCount || 0}
+                  likeCount={prompt.likeCount || 0}
                   sizes={PROMPT_LISTING_IMAGE_SIZES}
                   showSave
                   mobileTitleBelow
@@ -364,7 +365,8 @@ export default function PromptListingClient({
                   image={prompt.image || prompt.images?.[0] || '/images/placeholder.webp'}
                   imageAlt={prompt.imageAlt || prompt.title || ''}
                   slug={prompt.slug || ''}
-                  promptText={prompt.prompt || ''}
+                  viewCount={prompt.viewCount || 0}
+                  likeCount={prompt.likeCount || 0}
                   sizes={PROMPT_LISTING_IMAGE_SIZES}
                   showSave
                   mobileTitleBelow

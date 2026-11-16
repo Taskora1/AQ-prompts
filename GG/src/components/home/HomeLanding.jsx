@@ -273,7 +273,8 @@ export default function HomeLanding({
                   image={prompt.image || ''}
                   imageAlt={prompt.imageAlt || ''}
                   slug={prompt.slug || ''}
-                  promptText={prompt.prompt || ''}
+                  viewCount={prompt.viewCount || 0}
+                  likeCount={prompt.likeCount || 0}
                   uniformAspectRatio
                 />
               ))}

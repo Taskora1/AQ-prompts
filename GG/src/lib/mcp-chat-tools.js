@@ -109,10 +109,21 @@ export async function sendAgentMessage(input, authentication = null) {
     }
     throw error;
   }
+  // Lanes send chat/report only; assignment, rule, feedback, blockage and
+  // announcement are supervisor/owner only (the web UI enforces the same
+  // rule in the admin API route — this check is repeated here because the
+  // MCP tool is a separate entry point).
+  const type = String(input?.type ?? 'chat').trim().toLowerCase();
+  if (type !== 'chat' && type !== 'report') {
+    throw new McpChatToolError(
+      'Lanes can only send chat or report messages. Assignment, rule, feedback, blockage and announcement messages are supervisor-only.',
+    );
+  }
   const adminUser = await getMcpAdminUser(authentication);
   const message = await createAgentMessage({
     senderAdminId: adminUser.adminUserId,
     body,
+    type,
   });
   return { message };
 }

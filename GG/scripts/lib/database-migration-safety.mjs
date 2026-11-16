@@ -47,6 +47,10 @@ export const DATABASE_MIGRATION_OPERATIONS = Object.freeze({
   'add prompt editorial metadata columns',
   'add generation tested tool metadata',
 ],
+'add-prompt-engagement.mjs': [
+  'add view and like count columns to prompts when missing',
+  'prompt feedback reuses the moderated site reviews table (no new table)',
+],
   'add-prompt-detail-fields.mjs': [
     'add prompt variation, recommended tool, tool note, how-to, and compatible tool fields',
     'constrain detail-content JSONB columns to arrays without changing existing prompt data',

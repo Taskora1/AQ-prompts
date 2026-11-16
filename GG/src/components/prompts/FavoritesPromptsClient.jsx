@@ -73,6 +73,8 @@ export default function FavoritesPromptsClient({ prompts = [] }) {
           images={prompt.images || []}
           slug={prompt.slug || ''}
           promptText={prompt.prompt || ''}
+          viewCount={prompt.viewCount || 0}
+          likeCount={prompt.likeCount || 0}
           priority={index === 0}
         />
       ))}

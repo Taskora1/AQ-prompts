@@ -92,6 +92,8 @@ export default function PromptDetailExperience({
   imageUrl = '',
   shareUrl = '',
   hasCustomHowToSteps = false,
+  initialViewCount = 0,
+  initialLikeCount = 0,
 }) {
   const [selectedRatio, setSelectedRatio] = useState(
     isSupportedAspectRatio(defaultAspectRatio) || '4:5'
@@ -345,7 +347,12 @@ export default function PromptDetailExperience({
               </div>
 
               <div className="mt-4">
-                <PromptEngagementBar promptId={promptId} />
+                <PromptEngagementBar
+                  promptId={promptId}
+                  promptDbId={reviewPromptId}
+                  initialViewCount={initialViewCount}
+                  initialLikeCount={initialLikeCount}
+                />
               </div>
             </div>
           </div>

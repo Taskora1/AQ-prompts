@@ -18,13 +18,15 @@ const revokedAuth = { type: 'oauth', subject: 'mcp-subject-revoked', clientId: '
 let users;
 let authorizations;
 let messages;
+let reads;
 let nextMessageId;
 let messageSeq;
 
 function seedTables() {
   users = [
-    { id: 1, email: 'lane1@aqprompts.com', role: 'admin' },
-    { id: 2, email: 'lane2@aqprompts.com', role: 'admin' },
+    // Lane 1 has a display name set; lane 2 does not (falls back to email).
+    { id: 1, email: 'lane1@aqprompts.com', role: 'admin', display_name: 'Lane 1' },
+    { id: 2, email: 'lane2@aqprompts.com', role: 'admin', display_name: null },
   ];
   authorizations = [
     { subject: 'mcp-subject-lane1', client_id: 'claude-desktop', admin_user_id: 1, revoked_at: null },
@@ -34,6 +36,7 @@ function seedTables() {
   nextMessageId = 1;
   messageSeq = 0;
   messages = [];
+  reads = [];
 }
 
 function nextTimestamp() {
@@ -43,23 +46,39 @@ function nextTimestamp() {
 
 function projectMessage(row) {
   const sender = users.find((user) => user.id === row.sender_admin_id);
+  const senderDisplayName = sender?.display_name || null;
+  const senderName = senderDisplayName || sender?.email || 'Deleted admin';
+  // Per-admin read receipts: display names of other admins whose
+  // last-read message id is at least this message's id.
+  const readBy = reads
+    .filter((read) => read.admin_id !== row.sender_admin_id
+      && read.last_read_message_id >= row.id)
+    .map((read) => {
+      const reader = users.find((user) => user.id === read.admin_id);
+      return reader?.display_name || reader?.email || 'An admin';
+    });
   return {
     id: row.id,
     senderAdminId: row.sender_admin_id,
     senderEmail: sender ? sender.email : null,
+    senderDisplayName,
+    senderName,
     body: row.body,
     thread: row.thread,
+    type: row.type || 'chat',
     createdAt: row.created_at,
     readAt: row.read_at,
+    readBy,
   };
 }
 
-function insertMessage(senderAdminId, body, createdAt = nextTimestamp()) {
+function insertMessage(senderAdminId, body, createdAt = nextTimestamp(), type = 'chat') {
   const row = {
     id: nextMessageId++,
     sender_admin_id: senderAdminId,
     body,
     thread: '',
+    type,
     created_at: createdAt,
     read_at: null,
   };
@@ -75,6 +94,40 @@ const fakeClient = {
 
     if (sql.startsWith('CREATE TABLE') || sql.startsWith('CREATE INDEX')) {
       return { rows: [], rowCount: 0 };
+    }
+
+    // Schema migrations for existing tables (ALTER TABLE ... ADD COLUMN
+    // IF NOT EXISTS): the column is already there in the seeded fake.
+    if (sql.startsWith('ALTER TABLE')) {
+      return { rows: [], rowCount: 0 };
+    }
+
+    // Read receipts: INSERT INTO agent_message_reads ... ON CONFLICT
+    // (admin_id) DO UPDATE ... WHERE last_read < EXCLUDED.last_read — the
+    // watermark only ever moves forward.
+    if (sql.includes('INSERT INTO agent_message_reads')) {
+      const [adminId, lastReadMessageId] = values;
+      const existing = reads.find((row) => row.admin_id === adminId);
+      if (!existing) {
+        reads.push({ admin_id: adminId, last_read_message_id: lastReadMessageId });
+      } else if (lastReadMessageId > existing.last_read_message_id) {
+        existing.last_read_message_id = lastReadMessageId;
+      }
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (sql.includes('FROM agent_message_reads')) {
+      return {
+        rows: reads.map((row) => {
+          const user = users.find((candidate) => candidate.id === row.admin_id);
+          return {
+            adminId: row.admin_id,
+            lastReadMessageId: row.last_read_message_id,
+            displayName: user?.display_name || user?.email || '',
+          };
+        }),
+        rowCount: reads.length,
+      };
     }
 
     if (sql.includes('FROM mcp_oauth_authorizations')) {
@@ -94,6 +147,7 @@ const fakeClient = {
     if (sql.includes('INSERT INTO agent_messages')) {
       const row = insertMessage(values[0], values[1]);
       row.thread = values[2] ?? '';
+      row.type = values[3] ?? 'chat';
       return { rows: [{ id: row.id }], rowCount: 1 };
     }
 
@@ -309,6 +363,87 @@ test('send_agent_message refuses a non-OAuth caller', async () => {
     () => sendAgentMessage({ body: 'Hello.' }, null),
     (error) => error instanceof McpAuthorizationError,
   );
+});
+
+test('send_agent_message stores a report type and defaults to chat', async () => {
+  const report = await sendAgentMessage({ body: 'Lane 1: draft done.', type: 'report' }, lane1Auth);
+  assert.equal(report.message.type, 'report');
+
+  const plain = await sendAgentMessage({ body: 'Lane 1: noted.' }, lane1Auth);
+  assert.equal(plain.message.type, 'chat', 'no type given means chat');
+  assert.equal(messages[1].type, 'chat', 'the stored row defaults to chat too');
+});
+
+test('send_agent_message refuses moderator-only types for lanes', async () => {
+  for (const type of ['announcement', 'assignment', 'rule', 'feedback', 'blockage']) {
+    await assert.rejects(
+      () => sendAgentMessage({ body: 'Trying a moderator type.', type }, lane1Auth),
+      (error) => error instanceof McpChatToolError,
+      `type ${type} must be rejected`,
+    );
+  }
+  assert.equal(messages.length, 0);
+});
+
+test('send_agent_message refuses an unknown type', async () => {
+  await assert.rejects(
+    () => sendAgentMessage({ body: 'Hello.', type: 'bogus' }, lane1Auth),
+    (error) => error instanceof McpChatToolError,
+  );
+  assert.equal(messages.length, 0);
+});
+
+test('messages show the display name when set, else the email', async () => {
+  await sendAgentMessage({ body: 'From lane 1.' }, lane1Auth);
+  await sendAgentMessage({ body: 'From lane 2.' }, lane2Auth);
+
+  const result = await listAgentMessages({}, lane1Auth);
+  const lane1Message = result.messages.find((message) => message.senderAdminId === 1);
+  const lane2Message = result.messages.find((message) => message.senderAdminId === 2);
+
+  assert.equal(lane1Message.senderDisplayName, 'Lane 1');
+  assert.equal(lane1Message.senderName, 'Lane 1');
+  assert.equal(lane2Message.senderDisplayName, null);
+  assert.equal(lane2Message.senderName, 'lane2@aqprompts.com', 'no display name means the email shows');
+});
+
+test('list_agent_messages records per-admin read receipts', async () => {
+  insertMessage(2, 'Lane 2: draft ready.');
+  insertMessage(1, 'Lane 1: noted.');
+
+  const result = await listAgentMessages({}, lane1Auth);
+  const lane2Message = result.messages.find((message) => message.senderAdminId === 2);
+  const lane1Message = result.messages.find((message) => message.senderAdminId === 1);
+
+  assert.deepEqual(lane2Message.readBy, ['Lane 1'], 'the other lane message shows who read it');
+  assert.deepEqual(lane1Message.readBy, [], 'the sender never counts as a reader of their own message');
+
+  // The watermark row exists for lane 1 after listing.
+  const lane1Read = reads.find((row) => row.admin_id === 1);
+  assert.ok(lane1Read, 'listing records a read watermark');
+  assert.equal(lane1Read.last_read_message_id, 2, 'the watermark is the newest message id listed');
+});
+
+test('a paged-back list never moves the read watermark backwards', async () => {
+  insertMessage(2, 'First.');
+  insertMessage(2, 'Second.');
+  insertMessage(1, 'Third.');
+
+  await listAgentMessages({}, lane1Auth);
+  assert.equal(reads.find((row) => row.admin_id === 1).last_read_message_id, 3);
+
+  // Page back to before id 2: the page only contains message 1.
+  await listAgentMessages({ limit: 2, beforeId: 2 }, lane1Auth);
+  assert.equal(
+    reads.find((row) => row.admin_id === 1).last_read_message_id,
+    3,
+    'the watermark stays at 3 even though the page max is 1',
+  );
+
+  // So message 2 still shows as read by lane 1 to other readers.
+  const result = await listAgentMessages({}, lane2Auth);
+  const second = result.messages.find((message) => message.body === 'Second.');
+  assert.deepEqual(second.readBy, ['Lane 1']);
 });
 
 test.after(() => {

@@ -170,6 +170,11 @@ export default async function FeedbackPage({ searchParams }) {
                           ) : (
                             <p className="mt-0.5 text-xs text-slate-500">AQPrompts community member</p>
                           )}
+                          {review.source === 'prompt' ? (
+                            <span className="mt-1 inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-[#c2410c] dark:bg-orange-400/10 dark:text-orange-300">
+                              Prompt feedback
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <span className="shrink-0 text-base tracking-[0.12em] text-amber-500">

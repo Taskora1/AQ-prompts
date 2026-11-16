@@ -74,7 +74,8 @@ test('prompt feed query caps rows at 100 and preserves complete prompt fields/or
   assert.match(lastQuery, /ORDER BY p\.updated_at DESC NULLS LAST, p\.id DESC\s+LIMIT 100/i);
   assert.match(lastQuery, /p\.prompt,/i);
   assert.deepEqual(Object.keys(rows[0]), [
-    'title', 'slug', 'prompt', 'image', 'tags', 'category', 'intro', 'updatedAt',
+    'title', 'slug', 'prompt', 'image', 'imageAlt', 'tags', 'category', 'intro',
+    'updatedAt', 'viewCount', 'likeCount',
   ]);
   assert.match(rows[0].prompt, /Complete prompt body 1/);
   assert.ok(rows[0].prompt.length > 300);

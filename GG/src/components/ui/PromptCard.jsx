@@ -1,10 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Eye, Heart } from 'lucide-react';
 
 import ImageCarousel from '@/components/ui/ImageCarousel';
 import { optimizeCloudinaryUrl } from '@/lib/cloudinary-optimize';
 import { getPromptThumbnailPaths } from '@/lib/prompt-images';
 import { getCategoryDisplayName, getPromptUrl } from '@/lib/prompt-constants';
+import { formatCompactCount } from '@/lib/prompt-card';
 
 export default function PromptCard({
   title,
@@ -14,10 +16,10 @@ export default function PromptCard({
   image,
   images = [],
   slug,
-  initialStats = null,
+  viewCount = 0,
+  likeCount = 0,
   priority = false,
   staticImage = false,
-  actionLabel = 'Open, Copy & Rate',
 }) {
   const promptUrl = getPromptUrl({ slug, title });
   const previewImages = Array.isArray(images) && images.length > 0 ? images : [image || '/images/placeholder.webp'];
@@ -77,7 +79,7 @@ export default function PromptCard({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-        {/* Like control intentionally removed — engagement features are disabled site-wide. */}
+        {/* No like button on the card — likes happen on the detail page only. Counts show below when non-zero. */}
         <div className="flex items-center justify-end">
           <div className="truncate rounded-full bg-[#f1f5f9] px-3 py-1 text-xs font-semibold text-[#4b5563] dark:bg-[#1e1e2e] dark:text-[#9ca3af]">
             {categoryLabel}
@@ -90,14 +92,18 @@ export default function PromptCard({
           </Link>
         </h3>
 
-        <div className="mt-auto grid gap-2 pt-4">
-          <Link
-            href={promptUrl}
-            className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#ff6b35] px-5 text-sm font-bold text-[#111118] shadow-lg shadow-orange-950/20 transition hover:bg-[#e85d28] dark:shadow-orange-950/25"
-          >
-            {actionLabel} <span aria-hidden="true" className="ml-1">&rarr;</span>
-          </Link>
-        </div>
+        {viewCount > 0 || likeCount > 0 ? (
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6b7280] dark:text-[#9ca3af]">
+            <span className="inline-flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              {formatCompactCount(viewCount)} {viewCount === 1 ? 'view' : 'views'}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" aria-hidden="true" />
+              {formatCompactCount(likeCount)} {likeCount === 1 ? 'like' : 'likes'}
+            </span>
+          </p>
+        ) : null}
       </div>
     </article>
   );

@@ -132,6 +132,83 @@ export function countPromptBlocks(html = '') {
   return getPromptBlocks(html).length;
 }
 
+// --- Public prompt-box rendering (theme-aware redesign, 2026-11-13) ---
+// The public post renders each prompt block as a copy box. The box header
+// carries the prompt's title + "Best for" line and a small pill Copy
+// button with an icon; the copy confirmation is a persistent
+// "Copied — <title>" caption inside the box — it names the prompt, unlike
+// the old 2-second toast. Title source, in order: the pre's data-title
+// (new editor saves it), the nearest preceding numbered heading (h2/h3,
+// number stripped — old posts like the Birthday post have no data-title),
+// else "Prompt N" in document order. "Best for" comes from the <p> right
+// after that heading when it starts with "Best for". Non-prompt code
+// blocks keep the old shape (small Copy button above the code).
+
+const COPY_ICON_SVG = '<svg class="article-copy-icon article-copy-icon-copy" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const CHECK_ICON_SVG = '<svg class="article-copy-icon article-copy-icon-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>';
+
+// Numbered headings in the article (h2/h3 starting "1. ", "2) ", ...)
+// with the "Best for" paragraph that follows each one, if any. The box
+// header titles come from here for posts saved before the editor wrote
+// data-title onto the pre (e.g. the Birthday post).
+export function getPromptHeadings(html = '') {
+  const source = String(html || '');
+  const headings = [];
+  const headingRe = /<(h2|h3)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let match;
+  while ((match = headingRe.exec(source)) !== null) {
+    const text = codeText(match[2]);
+    if (!/^\d{1,2}[.)]\s/.test(text)) continue;
+    const title = text.replace(/^\d{1,2}[.)]\s*/, '').trim();
+    if (!title) continue;
+    const paraMatch = source.slice(headingRe.lastIndex).match(/^\s*<p\b[^>]*>([\s\S]*?)<\/p>/i);
+    const paraText = paraMatch ? codeText(paraMatch[1]) : '';
+    headings.push({
+      index: match.index,
+      title,
+      bestFor: /^best for:/i.test(paraText) ? paraText : '',
+    });
+  }
+  return headings;
+}
+
+// Wrap every <pre class="prompt-block"> in the new copy-box shell and
+// leave every other code block in the old shape. The <pre> itself is
+// untouched, so the gallery layout (which counts prompt-block classes)
+// and the empty-block strip keep working on the result.
+export function enhancePromptBlocks(html = '') {
+  const source = String(html || '');
+  const headings = getPromptHeadings(source);
+  let promptIndex = 0;
+  return source.replace(
+    PRE_CODE_RE,
+    (match, preAttrs, codeAttrs, codeHtml, offset) => {
+      if (!PROMPT_BLOCK_CLASS_RE.test(`${preAttrs || ''} ${codeAttrs || ''}`)) {
+        const plainCode = codeText(codeHtml);
+        const label = plainCode.length > 120 || /reference image|prompt/i.test(plainCode)
+          ? 'Copy Prompt'
+          : 'Copy';
+        return `<div class="article-code-shell"><button type="button" class="article-copy-button" data-copy-code aria-label="${escapeHtml(label)}">${escapeHtml(label)}</button><pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre></div>`;
+      }
+
+      promptIndex += 1;
+      const titleMatch = String(preAttrs || '').match(/data-title=["']([^"']*)["']/i);
+      const dataTitle = titleMatch ? decodeHtmlEntities(titleMatch[1]).trim() : '';
+      const heading = [...headings].reverse().find((item) => item.index < offset);
+      const title = dataTitle || heading?.title || `Prompt ${promptIndex}`;
+      const bestFor = heading?.bestFor || '';
+      const safeTitle = escapeHtml(title);
+      return `<div class="article-code-shell prompt-code-shell">`
+        + `<div class="article-prompt-header"><div class="article-prompt-heading">`
+        + `<h3 class="article-prompt-title">${safeTitle}</h3>`
+        + (bestFor ? `<p class="article-prompt-bestfor">${escapeHtml(bestFor)}</p>` : '')
+        + `</div><button type="button" class="article-copy-button" data-copy-code data-copy-title="${safeTitle}" aria-label="Copy ${safeTitle}" aria-live="polite">${COPY_ICON_SVG}${CHECK_ICON_SVG}<span class="article-copy-label">Copy</span></button></div>`
+        + `<pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre>`
+        + `<p class="article-copy-caption" role="status">✓ Copied — ${safeTitle}</p></div>`;
+    },
+  );
+}
+
 // FAQ block HTML: one <div class="faq-block"> holding the h2 heading and
 // an h3 question + p answer per item — the exact shape the public renderer
 // (convertInlineFaqToAccordion) turns into a <details> accordion. Empty

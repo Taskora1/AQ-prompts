@@ -295,7 +295,7 @@ test('copy gate allows three copies before requiring feedback', () => {
   assert.equal(hasReachedFeedbackCopyLimit(4), true);
 });
 
-test('public review data includes approved website and copy-gate feedback with a bounded page', async () => {
+test('public review data includes approved website, copy-gate and prompt feedback with a bounded page', async () => {
   const queries = [];
   globalThis.__dbPgPool = {
     ended: false,
@@ -330,8 +330,8 @@ test('public review data includes approved website and copy-gate feedback with a
   assert.equal(result.totalPages, 2);
   assert.equal(result.page, 2);
   assert.equal(result.reviews[0].text, 'Great prompts to use');
-  assert.match(queries[0].query, /WHERE status = 'approved'\s+AND source IN \('website', 'copy-gate'\)/);
-  assert.match(queries[1].query, /WHERE status = 'approved'\s+AND source IN \('website', 'copy-gate'\)/);
+  assert.match(queries[0].query, /WHERE status = 'approved'\s+AND source IN \('website', 'copy-gate', 'prompt'\)/);
+  assert.match(queries[1].query, /WHERE status = 'approved'\s+AND source IN \('website', 'copy-gate', 'prompt'\)/);
   assert.doesNotMatch(queries[1].query, /SELECT[^]*\bemail\b/i);
   assert.deepEqual(queries[1].values, [20, 20]);
 });
@@ -411,7 +411,7 @@ test('admin review cards expose a profile editor with photo, social link, and sa
 });
 
 test('feedback route and copy gate enforce pending feedback and both persistent completion markers', async () => {
-  const [route, adminRoute, reviewsManager, gate, form, stars, detail, textButton, homeCopy, cardCopy, listingCopy, sitemap, navigation, footer] = await Promise.all([
+  const [route, adminRoute, reviewsManager, gate, form, stars, detail, textButton, homeCopy, sitemap, navigation, footer] = await Promise.all([
     readFile(new URL('../app/api/reviews/route.js', import.meta.url), 'utf8'),
     readFile(new URL('../app/admin/api/reviews/[id]/route.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/admin/ReviewsManager.jsx', import.meta.url), 'utf8'),
@@ -421,8 +421,6 @@ test('feedback route and copy gate enforce pending feedback and both persistent 
     readFile(new URL('../src/components/prompts/PromptDetailExperience.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/prompts/TextPromptCopyButton.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/home/HomePromptCopyButton.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/components/ui/PromptCardCopy.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/components/prompts/PromptCopyControls.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/sitemap.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/Navbar.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/Footer.jsx', import.meta.url), 'utf8'),
@@ -473,8 +471,6 @@ test('feedback route and copy gate enforce pending feedback and both persistent 
   assert.match(detail, /promptId: reviewPromptId/);
   assert.match(textButton, /useCopyGate\(\{ promptId \}\)/);
   assert.match(homeCopy, /useCopyGate\(\{ promptId \}\)/);
-  assert.match(cardCopy, /promptId=\{promptId\}/);
-  assert.match(listingCopy, /useCopyGate\(\{ promptId \}\)/);
   assert.match(sitemap, /route: '\/feedback'/);
   assert.match(navigation, /label: 'Feedback', href: '\/feedback'/);
   assert.match(footer, /label: 'Feedback', href: '\/feedback'/);

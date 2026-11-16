@@ -265,6 +265,8 @@ export function normalizePrompt(
     generationTested: Boolean(item.generationTested),
     generationTestedDate: cleanText(item.generationTestedDate),
     generationTestedTool: cleanText(item.generationTestedTool),
+    viewCount: Math.max(0, Number(item.viewCount ?? item.view_count) || 0),
+    likeCount: Math.max(0, Number(item.likeCount ?? item.like_count) || 0),
     imageAltTexts: item.imageAltTexts && typeof item.imageAltTexts === 'object' && !Array.isArray(item.imageAltTexts)
       ? Object.fromEntries(
           Object.entries(item.imageAltTexts)
@@ -284,6 +286,8 @@ async function queryPromptRows() {
       p.slug,
       p.image,
       p.images,
+      p.view_count AS "viewCount",
+      p.like_count AS "likeCount",
       COALESCE(primary_category.name, p.category) AS category,
       COALESCE(JSONB_AGG(c.name ORDER BY pc.position, c.id) FILTER (WHERE c.id IS NOT NULL), p.categories, '[]'::jsonb) AS categories,
       p.use_case AS "useCase",
@@ -589,6 +593,8 @@ async function queryPromptRowsSlim({
       p.slug,
       p.image,
       p.images,
+      p.view_count AS "viewCount",
+      p.like_count AS "likeCount",
       p.image_alt_texts ->> '0' AS "imageAlt",
       COALESCE(primary_category.name, p.category) AS category,
       ${categoriesExpr},
@@ -861,6 +867,8 @@ export async function getSlimPromptsByIds(ids = []) {
         p.slug,
         p.image,
         p.images,
+        p.view_count AS "viewCount",
+        p.like_count AS "likeCount",
         p.image_alt_texts ->> '0' AS "imageAlt",
         COALESCE(primary_category.name, p.category) AS category,
         COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
@@ -1010,6 +1018,8 @@ export async function getTrendingPromptsByIds(ids = []) {
         p.id,
         p.title,
         p.slug,
+        p.view_count AS "viewCount",
+        p.like_count AS "likeCount",
         LEFT(
           REGEXP_REPLACE(
             COALESCE(
@@ -1062,6 +1072,8 @@ async function loadPromptFeedRows() {
       p.prompt,
       p.image,
       p.tags,
+      p.view_count AS "viewCount",
+      p.like_count AS "likeCount",
       p.image_alt_texts ->> '0' AS "imageAlt",
       p.category,
       p.use_case AS "useCase",
@@ -1086,6 +1098,8 @@ async function loadPromptFeedRows() {
     category: cleanText(row.category || row.useCase),
     intro: cleanPublicPromptText(row.intro),
     updatedAt: cleanText(row.updatedAt),
+    viewCount: Math.max(0, Number(row.viewCount ?? row.view_count) || 0),
+    likeCount: Math.max(0, Number(row.likeCount ?? row.like_count) || 0),
   }));
 }
 
@@ -1214,6 +1228,8 @@ export function normalizePromptSlim(
     generationTested: false,
     generationTestedDate: '',
     generationTestedTool: '',
+    viewCount: Math.max(0, Number(item.viewCount ?? item.view_count) || 0),
+    likeCount: Math.max(0, Number(item.likeCount ?? item.like_count) || 0),
     imageAltTexts: {},
   };
 }
@@ -1499,6 +1515,8 @@ async function queryHomepagePromptCards() {
           p.title,
           p.slug,
           p.prompt,
+          p.view_count AS "viewCount",
+          p.like_count AS "likeCount",
           COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
           p.image_alt_texts ->> '0' AS "imageAlt",
           p.tags,
@@ -1691,6 +1709,8 @@ async function loadHomepagePromptData() {
         imageAlt: cleanText(row.imageAlt),
         tags: cleanArray(row.tags),
         useCase: cleanText(row.useCase),
+        viewCount: Math.max(0, Number(row.viewCount ?? row.view_count) || 0),
+        likeCount: Math.max(0, Number(row.likeCount ?? row.like_count) || 0),
       };
       return isIndexablePrompt(prompt)
         ? { ...prompt, imageAlt: prompt.imageAlt || prompt.title }
@@ -1820,6 +1840,8 @@ async function loadPromptListingPagePayload() {
       p.title,
       p.slug,
       p.prompt,
+      p.view_count AS "viewCount",
+      p.like_count AS "likeCount",
       COALESCE(NULLIF(p.images ->> 0, ''), NULLIF(p.image, '')) AS image,
       p.image_alt_texts ->> '0' AS "imageAlt",
       totals.total_count AS "totalCount"
@@ -1843,6 +1865,8 @@ async function loadPromptListingPagePayload() {
         prompt: prompt.prompt,
         image: prompt.image,
         imageAlt: prompt.imageAlt || prompt.imageAltTexts?.['0'] || prompt.title,
+        viewCount: prompt.viewCount || 0,
+        likeCount: prompt.likeCount || 0,
       };
     });
   let totalCount = Number(result.rows[0]?.totalCount || 0);
@@ -1856,6 +1880,8 @@ async function loadPromptListingPagePayload() {
       slug: fallback.slug,
       image: fallback.image,
       imageAlt: fallback.imageAlt || fallback.title,
+      viewCount: fallback.viewCount || 0,
+      likeCount: fallback.likeCount || 0,
     }];
     totalCount = 1;
   }
@@ -1990,6 +2016,8 @@ function mapFullPromptToSlimBuildPrompt(prompt) {
     createdAt: prompt.createdAt,
     updatedAt: prompt.updatedAt,
     shouldNoindex: prompt.shouldNoindex,
+    viewCount: prompt.viewCount || 0,
+    likeCount: prompt.likeCount || 0,
   };
 }
 
@@ -2062,6 +2090,8 @@ async function queryPromptRowById(id) {
       p.slug,
       p.image,
       p.images,
+      p.view_count AS "viewCount",
+      p.like_count AS "likeCount",
       COALESCE(primary_category.name, p.category) AS category,
       COALESCE((SELECT JSONB_AGG(c.name ORDER BY pc.position, c.id)
         FROM prompt_categories pc

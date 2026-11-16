@@ -39,14 +39,18 @@ test('ratio personalization appends a ratio when none is present', () => {
   assert.equal(withAspectRatio('', '4:5'), 'aspect ratio 4:5');
 });
 
-test('aspect ratio personalization is shared by display and copy components', async () => {
-  const [detail, copy] = await Promise.all([
-    readFile(new URL('../src/components/prompts/PromptDetailExperience.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/components/prompts/PromptCopyControls.jsx', import.meta.url), 'utf8'),
-  ]);
+// The copy-controls component (PromptCopyControls.jsx) was removed by the
+// prompt-box redesign: prompt-box copying now runs through the blog-content
+// shells + CopyGate in SinglePostPage.jsx, so there is no separate copy
+// component left to share the ratio personalization with. The display path
+// still personalizes the ratio — that is what this test pins now.
+test('aspect ratio personalization is applied by the prompt display', async () => {
+  const detail = await readFile(
+    new URL('../src/components/prompts/PromptDetailExperience.jsx', import.meta.url),
+    'utf8',
+  );
 
   assert.match(detail, /withAspectRatio\(plainPrompt, selectedRatio\)/);
-  assert.match(copy, /withAspectRatio\(prompt, selectedRatio\)/);
 });
 
 test('aspect ratio normalization accepts only supported values', () => {

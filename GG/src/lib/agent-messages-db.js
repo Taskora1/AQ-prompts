@@ -8,8 +8,19 @@
 // resolved server-side from the authenticated identity (cookie session user
 // id, or the MCP OAuth subject's linked admin account) — never a free-text
 // name from the request body, so no agent can impersonate another agent or
-// the user. The display name is the admin user's email (the users table has
-// no display-name column).
+// the user. The name shown is the sender's display name when they set one
+// (users.display_name), otherwise their email; the email stays the
+// identity underneath — a display name is display-only.
+//
+// Message types (agent_messages.type) drive the coloured badge on each
+// message. Lanes send chat/report only; assignment/rule/feedback/blockage/
+// announcement are supervisor/owner only, enforced in the admin API route
+// and in sendAgentMessage — the client never decides this.
+//
+// Read receipts are per admin: agent_message_reads records each admin's
+// last-read message id, updated whenever they list the board. The old
+// read_at column (v1 "seen by at least one other participant") is kept
+// for backwards compatibility.
 //
 // Retention: messages auto-delete 30 days after they were created. The
 // prune is lazy — it runs inside listAgentMessages, the single read path
@@ -28,6 +39,7 @@
 // migration artifact for the same DDL. All SQL below is Postgres dialect;
 // the D1 translator (pg-to-d1.js) rewrites it for SQLite.
 import { getPgPool } from './db.js';
+import { ensureUsersDisplayNameColumn } from './admin-users-db.js';
 
 export const MAX_MESSAGE_BODY_LENGTH = 5000;
 export const MAX_MESSAGE_PAGE_SIZE = 100;
@@ -58,6 +70,63 @@ export function normalizeMessageBody(body) {
   return text;
 }
 
+// --- Message types ----------------------------------------------------------
+
+// The coloured badge on each message. 'chat' is the default when no type
+// is given. Lanes send chat/report only; the rest are moderator-only (see
+// isModeratorOnlyType / isChatModerator below). The badge labels and
+// colours live in agent-chat-commands.js (MESSAGE_TYPE_META) so the panel
+// and the tests share one definition.
+export const MESSAGE_TYPES = [
+  'assignment',
+  'rule',
+  'feedback',
+  'blockage',
+  'report',
+  'announcement',
+  'chat',
+];
+
+export const DEFAULT_MESSAGE_TYPE = 'chat';
+
+const MODERATOR_ONLY_TYPES = new Set([
+  'assignment',
+  'rule',
+  'feedback',
+  'blockage',
+  'announcement',
+]);
+
+// The supervisor seat is the 1347 admin account (the owner's standing
+// arrangement: Supervisor = Muse, abdulqudoos1347@gmail.com); the owner is
+// any super_admin. Only these two may post announcements, assignments,
+// scores and other moderator-only types. Email is used (not the numeric
+// id) because it is stable across the Neon backup and the live D1 copy.
+export const SUPERVISOR_EMAILS = ['abdulqudoos1347@gmail.com'];
+
+export function isChatModerator(adminUser) {
+  if (!adminUser) return false;
+  if (adminUser.role === 'super_admin') return true;
+  return SUPERVISOR_EMAILS.includes(String(adminUser.email || '').toLowerCase());
+}
+
+export function isModeratorOnlyType(type) {
+  return MODERATOR_ONLY_TYPES.has(String(type ?? '').trim().toLowerCase());
+}
+
+export function isMessageType(value) {
+  return MESSAGE_TYPES.includes(String(value ?? '').trim().toLowerCase());
+}
+
+export function normalizeMessageType(value) {
+  const type = String(value ?? '').trim().toLowerCase();
+  if (!type) return DEFAULT_MESSAGE_TYPE;
+  if (!MESSAGE_TYPES.includes(type)) {
+    throw new AgentMessageValidationError(`Unknown message type: ${type}.`);
+  }
+  return type;
+}
+
 function normalizePage(value, fallback) {
   const page = Number(value);
   if (!Number.isSafeInteger(page) || page < 1 || page > MAX_MESSAGE_PAGE) return fallback;
@@ -84,8 +153,24 @@ CREATE TABLE IF NOT EXISTS agent_messages (
   sender_admin_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   body TEXT NOT NULL,
   thread TEXT DEFAULT '',
+  type TEXT NOT NULL DEFAULT 'chat',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   read_at TIMESTAMPTZ
+)
+`;
+
+const ADD_AGENT_MESSAGES_TYPE_COLUMN_SQL = `
+ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'chat'
+`;
+
+// Per-admin read receipts: each admin's last-read message id. The panel
+// shows "Seen by …" from this table; the v1 read_at column stays as the
+// coarse "seen by someone" marker.
+const CREATE_AGENT_MESSAGE_READS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS agent_message_reads (
+  admin_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  last_read_message_id BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )
 `;
 
@@ -99,40 +184,90 @@ CREATE INDEX IF NOT EXISTS idx_agent_messages_sender
 ON agent_messages (sender_admin_id)
 `;
 
-// Exported so the migration script (scripts/create-agent-messages-table.mjs)
+const CREATE_AGENT_MESSAGES_TYPE_INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_agent_messages_type
+ON agent_messages (type)
+`;
+
+// Exported so the migration script (scripts/add-agent-chat-improvements.mjs)
 // and local verification use the exact same DDL — one source of truth.
 export {
   CREATE_AGENT_MESSAGES_TABLE_SQL,
+  ADD_AGENT_MESSAGES_TYPE_COLUMN_SQL,
+  CREATE_AGENT_MESSAGE_READS_TABLE_SQL,
   CREATE_AGENT_MESSAGES_CREATED_INDEX_SQL,
   CREATE_AGENT_MESSAGES_SENDER_INDEX_SQL,
+  CREATE_AGENT_MESSAGES_TYPE_INDEX_SQL,
 };
 
 let agentMessagesTableEnsured = false;
+
+// D1/SQLite has no ADD COLUMN IF NOT EXISTS: the pg-to-d1 translator
+// strips IF NOT EXISTS (pg-to-d1.js), and the column already exists on a
+// migrated table, so SQLite throws "duplicate column name". That error
+// means the column is already there — exactly the state IF NOT EXISTS
+// wanted — so ignore it and only it. Any other error still throws (fail
+// loudly). On Neon the native IF NOT EXISTS never throws for an existing
+// column, so the guard is a no-op there. Same pattern as
+// addColumnIfMissing in admin-password-reset-db.js.
+async function addColumnIfMissing(pool, sql) {
+  try {
+    await pool.query(sql);
+  } catch (error) {
+    if (/duplicate column name/i.test(String(error?.message || ''))) return;
+    throw error;
+  }
+}
 
 export async function ensureAgentMessagesTable() {
   if (agentMessagesTableEnsured) return;
   const db = getPgPool();
   await db.query(CREATE_AGENT_MESSAGES_TABLE_SQL);
+  await addColumnIfMissing(db, ADD_AGENT_MESSAGES_TYPE_COLUMN_SQL);
+  await db.query(CREATE_AGENT_MESSAGE_READS_TABLE_SQL);
   await db.query(CREATE_AGENT_MESSAGES_CREATED_INDEX_SQL);
   await db.query(CREATE_AGENT_MESSAGES_SENDER_INDEX_SQL);
+  await db.query(CREATE_AGENT_MESSAGES_TYPE_INDEX_SQL);
+  // The sender display name lives on users.display_name (see
+  // admin-users-db.js); make sure the column exists before any SELECT
+  // below references it.
+  await ensureUsersDisplayNameColumn();
   agentMessagesTableEnsured = true;
 }
 
 // --- Projection -------------------------------------------------------------
 
-function projectMessage(row) {
+function projectMessage(row, readsByAdminId = null) {
   if (!row) return null;
+  const senderId = row.senderAdminId == null ? null : Number(row.senderAdminId);
+  // readBy: display names of other admins whose last-read message id is
+  // at least this message's id. The sender never counts as a reader of
+  // their own message.
+  const readBy = [];
+  if (readsByAdminId) {
+    for (const [adminId, reader] of readsByAdminId) {
+      if (senderId != null && Number(adminId) === senderId) continue;
+      if (Number(reader.lastReadMessageId || 0) >= Number(row.id)) {
+        readBy.push(reader.displayName || 'An admin');
+      }
+    }
+  }
   return {
     id: Number(row.id),
-    senderAdminId: row.senderAdminId == null ? null : Number(row.senderAdminId),
+    senderAdminId: senderId,
     // Email comes from the LEFT JOIN; null when the sender's admin account
     // was deleted after the message was sent.
     senderEmail: row.senderEmail || null,
-    senderName: row.senderEmail || 'Deleted admin',
+    // Display name when the sender set one, else the email. The email
+    // stays the identity; the name is display-only.
+    senderDisplayName: row.senderDisplayName || null,
+    senderName: row.senderDisplayName || row.senderEmail || 'Deleted admin',
     body: row.body || '',
     thread: row.thread || '',
+    type: row.type || DEFAULT_MESSAGE_TYPE,
     createdAt: row.createdAt || '',
     readAt: row.readAt || null,
+    readBy,
   };
 }
 
@@ -140,8 +275,10 @@ const MESSAGE_COLUMNS = `
   m.id,
   m.sender_admin_id AS "senderAdminId",
   u.email AS "senderEmail",
+  u.display_name AS "senderDisplayName",
   m.body,
   m.thread,
+  m.type AS "type",
   m.created_at::text AS "createdAt",
   m.read_at::text AS "readAt"
 `;
@@ -202,10 +339,60 @@ async function markMessagesRead(viewerAdminId) {
   }
 }
 
+// Records that an admin has read up to a given message id. The watermark
+// only ever moves forward (the WHERE clause refuses a smaller id), so a
+// paged-back list can never un-read newer messages. Best-effort: a failed
+// upsert must not fail the list.
+async function recordMessagesRead(viewerAdminId, maxMessageId) {
+  if (viewerAdminId == null) return;
+  if (!Number.isSafeInteger(Number(maxMessageId)) || Number(maxMessageId) < 1) return;
+  try {
+    await getPgPool().query(
+      `
+        INSERT INTO agent_message_reads (admin_id, last_read_message_id, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (admin_id) DO UPDATE SET
+          last_read_message_id = EXCLUDED.last_read_message_id,
+          updated_at = EXCLUDED.updated_at
+        WHERE agent_message_reads.last_read_message_id < EXCLUDED.last_read_message_id
+      `,
+      [Number(viewerAdminId), Number(maxMessageId)],
+    );
+  } catch (error) {
+    console.error('[agent-messages] Failed to record read receipt:', error?.message || error);
+  }
+}
+
+// Every admin's read watermark, with the display name the panel shows.
+// Reader emails are not returned separately: the display name already
+// falls back to the email, exactly as the chat itself shows senders.
+async function listMessageReads() {
+  try {
+    const result = await getPgPool().query(`
+      SELECT
+        r.admin_id AS "adminId",
+        r.last_read_message_id AS "lastReadMessageId",
+        COALESCE(u.display_name, u.email, '') AS "displayName"
+      FROM agent_message_reads r
+      LEFT JOIN users u ON u.id = r.admin_id
+      ORDER BY r.admin_id
+    `);
+    return result.rows.map((row) => ({
+      adminId: Number(row.adminId),
+      displayName: row.displayName || '',
+      lastReadMessageId: Number(row.lastReadMessageId || 0),
+    }));
+  } catch (error) {
+    console.error('[agent-messages] Failed to list read receipts:', error?.message || error);
+    return [];
+  }
+}
+
 // Lists messages newest first (chat order is restored by reversing on the
-// client). Viewing the list marks other senders' unread messages as read,
-// so read_at means "seen by at least one other participant" — per-agent
-// read receipts would need a separate table and are out of scope for v1.
+// client). Viewing the list marks other senders' unread messages as read
+// (read_at) and records the viewer's own read watermark, so each message
+// carries a per-admin readBy list. The returned `reads` array is the raw
+// watermark table for the panel's "Not yet seen by" line.
 export async function listAgentMessages({
   page = 1,
   pageSize = DEFAULT_MESSAGE_PAGE_SIZE,
@@ -252,31 +439,43 @@ export async function listAgentMessages({
     listValues,
   );
 
+  const listed = rows.rows;
+  if (listed.length > 0) {
+    const maxId = Math.max(...listed.map((row) => Number(row.id)));
+    await recordMessagesRead(viewerAdminId, maxId);
+  }
+  const reads = await listMessageReads();
+  const readsByAdminId = new Map(
+    reads.map((read) => [Number(read.adminId), read]),
+  );
+
   return {
-    messages: rows.rows.map(projectMessage),
+    messages: listed.map((row) => projectMessage(row, readsByAdminId)),
     total,
     page: safePage,
     pageSize: currentPageSize,
     totalPages,
+    reads,
   };
 }
 
 // --- Writes -----------------------------------------------------------------
 
-export async function createAgentMessage({ senderAdminId, body, thread = '' }) {
+export async function createAgentMessage({ senderAdminId, body, thread = '', type = DEFAULT_MESSAGE_TYPE }) {
   const text = normalizeMessageBody(body);
   if (senderAdminId == null || !Number.isSafeInteger(Number(senderAdminId))) {
     throw new AgentMessageValidationError('A valid sender admin id is required.');
   }
+  const messageType = normalizeMessageType(type);
   const topic = String(thread ?? '').trim().slice(0, 120);
   await ensureAgentMessagesTable();
   const inserted = await getPgPool().query(
     `
-      INSERT INTO agent_messages (sender_admin_id, body, thread, created_at)
-      VALUES ($1, $2, $3, NOW())
+      INSERT INTO agent_messages (sender_admin_id, body, thread, type, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
       RETURNING id
     `,
-    [Number(senderAdminId), text, topic],
+    [Number(senderAdminId), text, topic, messageType],
   );
   const id = inserted.rows[0]?.id;
   if (id == null) throw new Error('Failed to create agent message.');

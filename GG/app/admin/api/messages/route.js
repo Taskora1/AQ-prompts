@@ -5,8 +5,15 @@ import {
   AgentMessageValidationError,
   createAgentMessage,
   ensureAgentMessagesTable,
+  isChatModerator,
+  isMessageType,
+  isModeratorOnlyType,
   listAgentMessages,
 } from '@/lib/agent-messages-db';
+
+// The leaderboard thread is moderator-only: it feeds the leaderboard
+// panel, and a lane could otherwise spoof scores by posting to it.
+const LEADERBOARD_THREAD = 'leaderboard';
 
 // Ensure table exists on first request (same pattern as ensureBlogTable in
 // the blog API route — a module-level flag keeps this to one DDL run per
@@ -60,10 +67,29 @@ export async function POST(request) {
     await ensureTable();
 
     const body = await request.json();
+    const type = String(body?.type ?? 'chat').trim().toLowerCase();
+    if (!isMessageType(type)) {
+      return NextResponse.json(
+        { error: `Unknown message type: ${type}.` },
+        { status: 400 },
+      );
+    }
+    const thread = String(body?.thread ?? '').trim();
+    const moderator = isChatModerator(adminUser);
+    if ((!moderator && isModeratorOnlyType(type)) || (!moderator && thread === LEADERBOARD_THREAD)) {
+      return NextResponse.json(
+        { error: 'Only the supervisor or the owner can post this type of message.' },
+        { status: 403 },
+      );
+    }
+
+    // The sender always comes from the authenticated identity, never from
+    // the request body — an agent can never post as someone else.
     const message = await createAgentMessage({
       senderAdminId: adminUser.id,
       body: body?.body ?? body?.message ?? '',
-      thread: body?.thread ?? '',
+      thread,
+      type,
     });
 
     return NextResponse.json({ success: true, message });

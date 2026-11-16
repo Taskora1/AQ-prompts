@@ -142,7 +142,7 @@ export async function getApprovedSiteReviewData({ page = 1 } = {}) {
         COALESCE(AVG(rating), 0)::numeric(3, 2)::text AS "averageRating"
       FROM public.site_reviews
       WHERE status = 'approved'
-        AND source IN ('website', 'copy-gate')
+        AND source IN ('website', 'copy-gate', 'prompt')
     `),
     pool.query(
       `
@@ -152,7 +152,7 @@ export async function getApprovedSiteReviewData({ page = 1 } = {}) {
           created_at::text AS created_at
         FROM public.site_reviews
         WHERE status = 'approved'
-          AND source IN ('website', 'copy-gate')
+          AND source IN ('website', 'copy-gate', 'prompt')
         ORDER BY created_at DESC, id DESC
         LIMIT $1 OFFSET $2
       `,

@@ -16,6 +16,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import JsonLd from '@/components/JsonLd';
 import PromptDetailExperience, { PromptVariationCard } from '@/components/prompts/PromptDetailExperience';
+import PromptFeedbackSection from '@/components/prompts/PromptFeedbackSection';
 import DailySecretPrompt from '@/components/prompts/DailySecretPrompt';
 import PromptListingClient from '@/components/prompts/PromptListingClient';
 import PromptIntroContent from '@/components/prompts/PromptIntroContent';
@@ -310,6 +311,8 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
           recommendedAspectRatio={prompt.recommendedAspectRatio || ''}
           aspectRatioReason={prompt.aspectRatioReason || ''}
           hasCustomHowToSteps={prompt.howToUse.length > 0}
+          initialViewCount={prompt.viewCount || 0}
+          initialLikeCount={prompt.likeCount || 0}
         >
           <ImageCarousel
             images={previewImages}
@@ -472,6 +475,9 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
 
         {/* ══════ FAQ ══════ */}
 
+        {/* ══════ PROMPT REVIEWS ══════ */}
+        <PromptFeedbackSection promptId={prompt.id} />
+
         {/* ══════ EXPLORE MORE AI IMAGE PROMPTS ══════ */}
         <section className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="rounded-[26px] border border-orange-100/80 bg-[linear-gradient(135deg,#fff7f2_0%,#fff_70%)] p-5 dark:border-white/[0.08] dark:bg-[linear-gradient(135deg,rgba(255,107,53,0.07),rgba(17,17,24,0.96)_70%)] sm:p-7">
@@ -532,7 +538,6 @@ export function PromptDetailPageServer({ prompt, allPrompts }) {
                   image={related.image || related.images?.[0] || ''}
                   imageAlt={related.imageAlt || related.imageAltTexts?.['0'] || related.imageAltTexts?.[0] || related.title || ''}
                   slug={related.slug || ''}
-                  promptText={related.prompt || ''}
                   mobileTitleBelow
                   uniformAspectRatio
                 />

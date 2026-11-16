@@ -25,10 +25,94 @@ function mapUser(row) {
     id: Number(row.id),
     email: row.email,
     role: row.role,
+    // Display name for the agent chat panel. Null when the admin never
+    // set one — the chat then falls back to the email. The email stays
+    // the identity; the name is display-only.
+    displayName: row.displayName ?? row.display_name ?? null,
     sessionVersion: Number(row.sessionVersion ?? 0),
     createdAt: row.createdAt || '',
     lastLoginAt: row.lastLoginAt || '',
   };
+}
+
+// --- Display name (agent chat) ----------------------------------------------
+
+// The agent chat shows each sender's display name when set, else their
+// email. The column is added lazily (same D1 pattern as
+// ensurePasswordResetTable): the Neon migration script
+// scripts/add-agent-chat-improvements.mjs carries the same ALTER for the
+// backup schema, and the live D1 column appears on the first admin
+// request after deploy. The ensure runs before any SELECT that reads the
+// column, so a pre-migration database never breaks sign-in.
+export const ADD_USERS_DISPLAY_NAME_COLUMN_SQL = `
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT
+`;
+
+export const MAX_DISPLAY_NAME_LENGTH = 80;
+
+let usersDisplayNameColumnPromise;
+
+async function addColumnIfMissing(pool, sql) {
+  try {
+    await pool.query(sql);
+  } catch (error) {
+    if (/duplicate column name/i.test(String(error?.message || ''))) return;
+    throw error;
+  }
+}
+
+export async function ensureUsersDisplayNameColumn() {
+  if (!usersDisplayNameColumnPromise) {
+    usersDisplayNameColumnPromise = (async () => {
+      await addColumnIfMissing(getPgPool(), ADD_USERS_DISPLAY_NAME_COLUMN_SQL);
+    })().catch((error) => {
+      usersDisplayNameColumnPromise = undefined;
+      throw error;
+    });
+  }
+  await usersDisplayNameColumnPromise;
+}
+
+// A display name is a short human label: trimmed, single-spaced, at most
+// 80 characters. Empty (or whitespace-only) clears it back to null, which
+// makes the chat fall back to the email.
+export function normalizeDisplayName(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  if (text.length > MAX_DISPLAY_NAME_LENGTH) {
+    throw new Error(
+      `Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer.`,
+    );
+  }
+  return text;
+}
+
+// Updates ONLY the given admin's own display name. Callers must pass the
+// authenticated user's id — the API route passes the session user id, so
+// nobody can set another admin's name.
+export async function updateAdminDisplayName(id, displayName) {
+  if (id == null || !Number.isSafeInteger(Number(id))) {
+    throw new Error('A valid admin user id is required.');
+  }
+  const name = normalizeDisplayName(displayName);
+  await ensureUsersDisplayNameColumn();
+  const result = await getPgPool().query(
+    `
+      UPDATE users
+      SET display_name = $2
+      WHERE id = $1
+      RETURNING
+        id,
+        email,
+        role,
+        display_name AS "displayName",
+        session_version AS "sessionVersion",
+        created_at::text AS "createdAt",
+        last_login_at::text AS "lastLoginAt"
+    `,
+    [Number(id), name],
+  );
+  return mapUser(result.rows[0]);
 }
 
 function validEmail(value) {
@@ -93,12 +177,14 @@ export async function findAdminUserByEmail(email, { includePasswordHash = false 
 }
 
 export async function getAdminUserById(id) {
+  await ensureUsersDisplayNameColumn();
   const result = await getPgPool().query(
     `
       SELECT
         id,
         email,
         role,
+        display_name AS "displayName",
         session_version AS "sessionVersion",
         created_at::text AS "createdAt",
         last_login_at::text AS "lastLoginAt"
