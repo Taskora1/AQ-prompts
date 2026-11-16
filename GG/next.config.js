@@ -252,6 +252,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/category/female-portrait-prompts',
+        destination: 'https://www.aqprompts.com/categories',
+        permanent: true,
+      },
+      {
         source: '/faq',
         destination: 'https://www.aqprompts.com/#faq',
         permanent: true,
