@@ -52,6 +52,29 @@ export function normalizeMessageType(value, fallback = DEFAULT_MESSAGE_TYPE) {
   return null;
 }
 
+// History posted before typed sends existed is all stored as 'chat' —
+// including the supervisor's 16 Nov assignment ("Supervisor assignment -
+// YOUR KEYWORDS…"), the two rules ("Supervisor rule - …") and the GSC
+// order ("Supervisor order - START NOW…"). Those supervisor prefixes are
+// deterministic, so the DISPLAY type (badge + digest counting) is derived
+// from them. The stored type is never rewritten — this is display-only,
+// and a lane quoting a rule mid-message is not reclassified because only
+// the start of the body is checked.
+export const RULE_MARKER = 'Supervisor rule';
+export const ORDER_MARKER = 'Supervisor order';
+
+export function displayTypeFor(message) {
+  const stored = String(message?.type || 'chat').trim().toLowerCase();
+  if (stored !== 'chat') {
+    return MESSAGE_TYPES.includes(stored) ? stored : 'chat';
+  }
+  const lower = String(message?.body || '').toLowerCase();
+  if (lower.startsWith(ASSIGNMENT_MARKER.toLowerCase())) return 'assignment';
+  if (lower.startsWith(RULE_MARKER.toLowerCase())) return 'rule';
+  if (lower.startsWith(ORDER_MARKER.toLowerCase())) return 'assignment';
+  return 'chat';
+}
+
 // --- Slash commands ---------------------------------------------------------
 
 export const SLASH_COMMANDS = [
@@ -65,6 +88,12 @@ export const SLASH_COMMANDS = [
     name: 'assign',
     usage: '/assign',
     description: 'Open the keyword assignment format to fill in.',
+    supervisorOnly: true,
+  },
+  {
+    name: 'rule',
+    usage: '/rule <text>',
+    description: 'Post a rule for the lanes (Supervisor / owner only).',
     supervisorOnly: true,
   },
   {
@@ -184,35 +213,62 @@ function isSameDay(a, b) {
     && a.getDate() === b.getDate();
 }
 
-// Client-side summary computed from the loaded messages only — no new
-// tables, no new endpoint. Assignments are today's type='assignment'
-// messages; blockages are type='blockage' from the last 7 days; drafts
-// pending verification are messages from the last 7 days that mention
-// both a draft and verification (a chat mention, not a tracked state).
-export function computeDailyDigest(messages, now = new Date()) {
+// Client-side summary computed from the loaded messages plus the real
+// pending drafts from the API. Assignments are today's messages whose
+// display type is 'assignment' (stored type, or the supervisor's
+// assignment/order prefix — see displayTypeFor); blockages are
+// type='blockage' from the last 7 days. Drafts pending verification are
+// the REAL blog drafts (blog_posts status='draft') passed in as
+// options.pendingDrafts — never a word match over chat text. The old
+// word-match count said 13 when no draft existed at all, so the count
+// here is a list of drafts, not a number: the panel shows each draft's
+// title with a link to it in the admin panel. When the caller passes no
+// drafts (old callers, MCP list), the field is an empty list.
+export function computeDailyDigest(messages, now = new Date(), { pendingDrafts = [] } = {}) {
   const list = Array.isArray(messages) ? messages : [];
   const reference = now instanceof Date ? now : new Date(now);
   const weekAgo = reference.getTime() - 7 * 24 * 60 * 60 * 1000;
   const assignmentsToday = [];
   const blockagesOpen = [];
-  const draftsPendingVerification = [];
 
   for (const message of list) {
     const created = messageTime(message?.createdAt);
     if (created == null) continue;
     const createdDate = new Date(created);
-    if (message?.type === 'assignment' && isSameDay(createdDate, reference)) {
+    if (displayTypeFor(message) === 'assignment' && isSameDay(createdDate, reference)) {
       assignmentsToday.push(message);
     }
     if (created < weekAgo) continue;
-    if (message?.type === 'blockage') blockagesOpen.push(message);
-    const body = String(message?.body || '');
-    if (/draft/i.test(body) && /verif/i.test(body)) {
-      draftsPendingVerification.push(message);
-    }
+    if (displayTypeFor(message) === 'blockage') blockagesOpen.push(message);
   }
 
-  return { assignmentsToday, blockagesOpen, draftsPendingVerification };
+  return {
+    assignmentsToday,
+    blockagesOpen,
+    pendingDrafts: Array.isArray(pendingDrafts) ? pendingDrafts : [],
+  };
+}
+
+// The pinned banner shows the latest announcement; the leaderboard shows
+// the latest /score post. Both are pure selections over the loaded list
+// so the panel and the tests share the logic.
+export function latestAnnouncementFrom(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  return [...list].reverse().find(isAnnouncement) ?? null;
+}
+
+export function latestLeaderboardPostFrom(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  return [...list].reverse().find(isLeaderboardPost) ?? null;
+}
+
+// How many messages arrived after the last id the user had seen — the
+// new-messages button count. Pure so the panel effect and the tests share
+// it; the panel's max-seen watermark is the only state.
+export function countNewMessages(messages, lastSeenId) {
+  const seen = Number(lastSeenId) || 0;
+  return (Array.isArray(messages) ? messages : [])
+    .filter((message) => Number(message.id) > seen).length;
 }
 
 // --- Avatars ----------------------------------------------------------------
@@ -230,19 +286,75 @@ export function avatarColorFor(email) {
   return AVATAR_COLORS[String(email || '').toLowerCase()] || 'bg-[#646970]';
 }
 
+// Roster labels for the known admin emails. A lane that has not set a
+// display name shows its label ("Lane 1" / "Lane 2") instead of a raw
+// email address — display-only, identity stays the email.
+export const ROSTER_LABELS = {
+  'abdulqudoos4473988@gmail.com': 'Lane 1',
+  'abdulqudoos5374@gmail.com': 'Lane 2',
+  'abdulqudoos1347@gmail.com': 'Supervisor',
+  'abdulqudoos.4755@gmail.com': 'Owner',
+};
+
+export const ROSTER_INITIALS = {
+  'abdulqudoos4473988@gmail.com': 'L1',
+  'abdulqudoos5374@gmail.com': 'L2',
+  'abdulqudoos1347@gmail.com': 'SU',
+  'abdulqudoos.4755@gmail.com': 'OW',
+};
+
+export function rosterLabelFor(email) {
+  return ROSTER_LABELS[String(email || '').toLowerCase()] || null;
+}
+
+// Display name with the roster fallback: a set display name wins, then
+// the known roster label, then the email. Use everywhere a sender is
+// shown (message header, read receipts, pinned announcement).
+export function displayNameFor({ displayName, email } = {}) {
+  const name = String(displayName || '').trim();
+  if (name) return name;
+  return rosterLabelFor(email) || String(email || '').trim() || 'Deleted admin';
+}
+
 // Initials from the display name when set, else from the email address:
-// "Lane 1" -> "L1", "Abdul Qudoos" -> "AQ", "lane1@…" -> "L".
+// "Lane 1" -> "L1", "Abdul Qudoos" -> "AQ". A roster email without a
+// display name gets its roster initials ("L1"/"L2") — the old code took
+// the first two letters of the email, which gave "AB" for BOTH lanes
+// because both emails start with "abdulqudoos".
 export function initialsFor(displayName, email) {
-  const source = String(displayName || '').trim() || String(email || '').trim();
+  const name = String(displayName || '').trim();
+  if (name) {
+    const words = name.split(/[\s._-]+/).filter(Boolean);
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  const rosterInitials = ROSTER_INITIALS[String(email || '').toLowerCase()];
+  if (rosterInitials) return rosterInitials;
+  const source = String(email || '').trim();
   if (!source) return '?';
-  const localPart = source.includes('@') && !String(displayName || '').trim()
-    ? source.split('@')[0]
-    : source;
+  const localPart = source.includes('@') ? source.split('@')[0] : source;
   const words = localPart.split(/[\s._-]+/).filter(Boolean);
   if (words.length >= 2) {
     return (words[0][0] + words[1][0]).toUpperCase();
   }
   return localPart.slice(0, 2).toUpperCase();
+}
+
+// Per-sender bubble tints so the lanes are distinct at a glance. Own
+// messages stay the blue bubble in the panel; these tints are for other
+// senders' bubbles (Lane 1 light blue, Lane 2 light teal).
+export const SENDER_BUBBLE_CLASSES = {
+  'abdulqudoos4473988@gmail.com': 'border-[#b3d4ea] bg-[#e5f1fa] text-[#1d2327]',
+  'abdulqudoos5374@gmail.com': 'border-[#b2d8d5] bg-[#e6f4f3] text-[#1d2327]',
+  'abdulqudoos1347@gmail.com': 'border-[#d5c6ec] bg-[#f1eaf9] text-[#1d2327]',
+  'abdulqudoos.4755@gmail.com': 'border-[#dcdcde] bg-[#f6f7f7] text-[#1d2327]',
+};
+
+export function bubbleClassFor(email) {
+  return SENDER_BUBBLE_CLASSES[String(email || '').toLowerCase()]
+    || 'border-[#dcdcde] bg-[#f6f7f7] text-[#1d2327]';
 }
 
 // --- Dates and grouping -----------------------------------------------------

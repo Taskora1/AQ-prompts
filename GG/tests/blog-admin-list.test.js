@@ -28,7 +28,10 @@ test('blog writes return only generated database fields while retaining the full
   );
 
   assert.equal([...writeReturning].length, 2);
-  assert.equal((database.match(/mapPostWriteResult\(result\.rows\[0\], data\)/g) || []).length, 2);
+  // Both write paths merge the RETURNING row with the full post payload —
+  // the payload variable is `clean` (the sanitized post, see
+  // sanitizeBlogContent), not the raw `data`.
+  assert.equal((database.match(/mapPostWriteResult\(result\.rows\[0\], \w+\)/g) || []).length, 2);
   assert.match(database, /function mapPostWriteResult\(row, data\)/);
   assert.match(database, /content_html: data\.contentHtml \|\| ''/);
   assert.match(database, /faqs: Array\.isArray\(data\.faqs\) \? data\.faqs : \[\]/);

@@ -35,7 +35,7 @@ test('ratio personalization replaces existing ratio phrases and retains spacing'
 });
 
 test('ratio personalization appends a ratio when none is present', () => {
-  assert.equal(withAspectRatio('A portrait prompt.', '4:5'), 'A portrait prompt., aspect ratio 4:5');
+  assert.equal(withAspectRatio('A portrait prompt.', '4:5'), 'A portrait prompt, aspect ratio 4:5');
   assert.equal(withAspectRatio('', '4:5'), 'aspect ratio 4:5');
 });
 

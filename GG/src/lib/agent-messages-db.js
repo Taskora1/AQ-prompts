@@ -39,6 +39,7 @@
 // migration artifact for the same DDL. All SQL below is Postgres dialect;
 // the D1 translator (pg-to-d1.js) rewrites it for SQLite.
 import { getPgPool } from './db.js';
+import { displayNameFor } from './agent-chat-commands.js';
 import { ensureUsersDisplayNameColumn } from './admin-users-db.js';
 
 export const MAX_MESSAGE_BODY_LENGTH = 5000;
@@ -248,7 +249,7 @@ function projectMessage(row, readsByAdminId = null) {
     for (const [adminId, reader] of readsByAdminId) {
       if (senderId != null && Number(adminId) === senderId) continue;
       if (Number(reader.lastReadMessageId || 0) >= Number(row.id)) {
-        readBy.push(reader.displayName || 'An admin');
+        readBy.push(displayNameFor({ displayName: reader.displayName, email: reader.email }));
       }
     }
   }
@@ -261,7 +262,7 @@ function projectMessage(row, readsByAdminId = null) {
     // Display name when the sender set one, else the email. The email
     // stays the identity; the name is display-only.
     senderDisplayName: row.senderDisplayName || null,
-    senderName: row.senderDisplayName || row.senderEmail || 'Deleted admin',
+    senderName: displayNameFor({ displayName: row.senderDisplayName, email: row.senderEmail }),
     body: row.body || '',
     thread: row.thread || '',
     type: row.type || DEFAULT_MESSAGE_TYPE,
@@ -363,16 +364,18 @@ async function recordMessagesRead(viewerAdminId, maxMessageId) {
   }
 }
 
-// Every admin's read watermark, with the display name the panel shows.
-// Reader emails are not returned separately: the display name already
-// falls back to the email, exactly as the chat itself shows senders.
+// Every admin's read watermark, with the display name and email the
+// panel needs to show "Seen by …" with the roster fallback (Lane 1 /
+// Lane 2 / Supervisor) instead of a raw email. The display name is
+// returned raw (null when unset) — the caller applies displayNameFor.
 async function listMessageReads() {
   try {
     const result = await getPgPool().query(`
       SELECT
         r.admin_id AS "adminId",
         r.last_read_message_id AS "lastReadMessageId",
-        COALESCE(u.display_name, u.email, '') AS "displayName"
+        u.display_name AS "displayName",
+        u.email AS "email"
       FROM agent_message_reads r
       LEFT JOIN users u ON u.id = r.admin_id
       ORDER BY r.admin_id
@@ -380,6 +383,7 @@ async function listMessageReads() {
     return result.rows.map((row) => ({
       adminId: Number(row.adminId),
       displayName: row.displayName || '',
+      email: row.email || '',
       lastReadMessageId: Number(row.lastReadMessageId || 0),
     }));
   } catch (error) {

@@ -129,7 +129,7 @@ test('the three prompt/blog feeds retain valid RSS item fields and share daily C
     assert.ok(feedModule.includes(field), `RSS item field is missing: ${field}`);
   }
   assert.match(feedModule, /public, s-maxage=86400, stale-while-revalidate=86400/);
-  assert.match(nextConfig, /public, s-maxage=86400, stale-while-revalidate=86400/);
+  assert.match(nextConfig, /public, s-maxage=3600, stale-while-revalidate=86400/);
   assert.equal((nextConfig.match(/source: '\/(?:feed|rss|pinterest-feed)\.xml'/g) || []).length, 3);
   for (const route of feedRoutes) {
     assert.match(route, /buildBlogRssFeed/);

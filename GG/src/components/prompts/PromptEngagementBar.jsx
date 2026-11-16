@@ -48,19 +48,44 @@ export default function PromptEngagementBar({
     return undefined;
   }, [promptId]);
 
-  // One view per detail-page visit: the same user opening the page twice
-  // counts twice (owner rule). Fire-and-forget — a failed POST never
-  // breaks the page.
+  // Live counts: the detail page is statically prerendered, so the counts
+  // baked into the HTML are build-time values. Re-read them from D1 on
+  // every mount (so a like survives a reload), then record this visit's
+  // view — the POST returns the incremented view count. One view per
+  // detail-page visit: the same user opening the page twice counts twice
+  // (owner rule). Fire-and-forget — a failed request never breaks the
+  // page. Counts only ever grow, so a stale GET response must never lower
+  // what is shown (e.g. if it lands after a like click), hence Math.max.
   useEffect(() => {
     if (!promptDbId || !Number.isSafeInteger(Number(promptDbId))) return undefined;
     let cancelled = false;
-    fetch(`/api/prompts/${promptDbId}/view`, { method: 'POST' })
-      .then(async (response) => {
-        if (cancelled || !response.ok) return;
-        const data = await response.json().catch(() => null);
+    (async () => {
+      try {
+        const countsResponse = await fetch(`/api/prompts/${promptDbId}/engagement`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!cancelled && countsResponse.ok) {
+          const data = await countsResponse.json().catch(() => null);
+          if (data && Number.isSafeInteger(data.viewCount)) {
+            setViewCount((current) => Math.max(current, data.viewCount));
+          }
+          if (data && Number.isSafeInteger(data.likeCount)) {
+            setLikeCount((current) => Math.max(current, data.likeCount));
+          }
+        }
+      } catch {
+        // Live counts are best-effort; the view POST below still runs.
+      }
+      if (cancelled) return;
+      try {
+        const viewResponse = await fetch(`/api/prompts/${promptDbId}/view`, { method: 'POST' });
+        if (cancelled || !viewResponse.ok) return;
+        const data = await viewResponse.json().catch(() => null);
         if (data && Number.isSafeInteger(data.viewCount)) setViewCount(data.viewCount);
-      })
-      .catch(() => {});
+      } catch {
+        // A failed view POST never breaks the page.
+      }
+    })();
     return () => {
       cancelled = true;
     };

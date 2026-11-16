@@ -101,6 +101,27 @@ export function validatePromptFeedbackInput({ rating, comment } = {}) {
   return { rating: parsedRating, comment: text };
 }
 
+export async function getPromptEngagementCounts(promptId) {
+  const id = normalizePromptEngagementId(promptId);
+  const result = await getPgPool().query(
+    `
+      SELECT
+        view_count AS "viewCount",
+        like_count AS "likeCount"
+      FROM prompts
+      WHERE id = $1
+        AND status = 'published'
+    `,
+    [id],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    viewCount: Math.max(0, Number(row.viewCount) || 0),
+    likeCount: Math.max(0, Number(row.likeCount) || 0),
+  };
+}
+
 export async function incrementPromptViewCount(promptId) {
   const id = normalizePromptEngagementId(promptId);
   await ensurePromptEngagementSchema();
@@ -181,6 +202,32 @@ export async function submitPromptFeedback({
     return { limited: false, review: result.rows[0] };
   }
   return { limited: true, review: null };
+}
+
+// Dedupe guard for the feedback POST retry (see the feedback route): if a
+// first INSERT attempt fails after the row was already written (e.g. a
+// transient D1 error on the way back), the retry must not create a second
+// row. Matches the same submission (prompt + IP + rating + comment) from
+// the last 2 minutes only — it never matches an older, separate review.
+export async function findRecentPromptFeedback({ promptId, ipHash, rating, comment }) {
+  const id = normalizePromptEngagementId(promptId);
+  const { rating: parsedRating, comment: text } = validatePromptFeedbackInput({ rating, comment });
+  const result = await getPgPool().query(
+    `
+      SELECT id
+      FROM public.site_reviews
+      WHERE prompt_id = $1
+        AND ip_hash = $2
+        AND rating = $3
+        AND review_text = $4
+        AND source = 'prompt'
+        AND created_at > NOW() - INTERVAL '2 minutes'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [id, ipHash, parsedRating, text],
+  );
+  return result.rows[0] || null;
 }
 
 export async function getPromptFeedbackSummary(promptId) {

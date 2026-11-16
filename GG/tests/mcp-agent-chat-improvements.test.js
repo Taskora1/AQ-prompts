@@ -12,17 +12,24 @@ import {
   MESSAGE_TYPE_META,
   assignmentTemplate,
   avatarColorFor,
+  bubbleClassFor,
   collapsedPreview,
   computeDailyDigest,
+  countNewMessages,
   dayLabel,
+  displayNameFor,
+  displayTypeFor,
   formatStatusLine,
   groupMessagesForDisplay,
   initialsFor,
   isAnnouncement,
   isLeaderboardPost,
+  latestAnnouncementFrom,
+  latestLeaderboardPostFrom,
   parseLeaderboardText,
   parseSlashCommand,
   readReceiptLine,
+  rosterLabelFor,
   shouldCollapseMessage,
   slashCommandSuggestions,
 } from '../src/lib/agent-chat-commands.js';
@@ -46,6 +53,10 @@ test('parseSlashCommand recognises known commands with their args', () => {
     args: 'Read this first',
   });
   assert.deepEqual(parseSlashCommand('/assign'), { name: 'assign', args: '' });
+  assert.deepEqual(parseSlashCommand('/rule New keywords come from GSC only'), {
+    name: 'rule',
+    args: 'New keywords come from GSC only',
+  });
   assert.deepEqual(parseSlashCommand('/score Lane 1: 85 points (Rank 1)'), {
     name: 'score',
     args: 'Lane 1: 85 points (Rank 1)',
@@ -76,10 +87,14 @@ test('parseSlashCommand flags unknown commands without sending', () => {
 });
 
 test('slashCommandSuggestions filters by prefix', () => {
-  assert.equal(slashCommandSuggestions('').length, 5);
+  assert.equal(slashCommandSuggestions('').length, 6);
   assert.deepEqual(
     slashCommandSuggestions('/an').map((command) => command.name),
     ['announce'],
+  );
+  assert.deepEqual(
+    slashCommandSuggestions('/r').map((command) => command.name),
+    ['rule'],
   );
   assert.deepEqual(
     slashCommandSuggestions('/s').map((command) => command.name),
@@ -134,6 +149,35 @@ test('MESSAGE_TYPE_META covers every message type', () => {
     assert.ok(MESSAGE_TYPE_META[type].label, `label for ${type}`);
     assert.ok(MESSAGE_TYPE_META[type].badgeClass, `badge class for ${type}`);
   }
+});
+
+test('displayTypeFor keeps stored types and reclassifies the supervisor prefixes', () => {
+  // Stored types pass through unchanged.
+  assert.equal(displayTypeFor({ type: 'announcement', body: 'Hello' }), 'announcement');
+  assert.equal(displayTypeFor({ type: 'report', body: 'Done.' }), 'report');
+  assert.equal(displayTypeFor({ type: 'bogus', body: 'Hello' }), 'chat');
+
+  // History stored as 'chat' before typed sends: the 16 Nov supervisor
+  // messages are reclassified from their prefixes for display only.
+  assert.equal(
+    displayTypeFor({ type: 'chat', body: 'Supervisor assignment - YOUR KEYWORDS (16 Nov): 20+20 = 40.' }),
+    'assignment',
+  );
+  assert.equal(
+    displayTypeFor({ type: 'chat', body: 'Supervisor rule - DRAFT PEER REVIEW (16 Nov): When any lane writes a draft…' }),
+    'rule',
+  );
+  assert.equal(
+    displayTypeFor({ type: 'chat', body: 'Supervisor order - START NOW (16 Nov): GSC keyword work.' }),
+    'assignment',
+  );
+  // A lane quoting a rule mid-message is not reclassified: only the
+  // start of the body counts.
+  assert.equal(
+    displayTypeFor({ type: 'chat', body: 'Sir, confirming the draft peer review rule and the reply rule.' }),
+    'chat',
+  );
+  assert.equal(displayTypeFor({ type: 'chat', body: 'Plain chat.' }), 'chat');
 });
 
 test('isModeratorOnlyType and isChatModerator gate moderator types', () => {
@@ -196,7 +240,7 @@ test('isLeaderboardPost and isAnnouncement match their markers', () => {
 
 // --- Daily digest -----------------------------------------------------------
 
-test('computeDailyDigest counts today assignments, recent blockages and draft mentions', () => {
+test('computeDailyDigest counts real assignments today and real pending drafts', () => {
   const now = new Date();
   const today = now.toISOString();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -204,28 +248,51 @@ test('computeDailyDigest counts today assignments, recent blockages and draft me
   const messages = [
     { id: 1, type: 'assignment', body: 'Your keywords', createdAt: today },
     { id: 2, type: 'assignment', body: 'Old keywords', createdAt: threeDaysAgo },
-    { id: 3, type: 'blockage', body: 'API is down', createdAt: threeDaysAgo },
-    { id: 4, type: 'blockage', body: 'Old blockage', createdAt: tenDaysAgo },
-    { id: 5, type: 'chat', body: 'Draft ready, waiting for owner verification.', createdAt: threeDaysAgo },
-    { id: 6, type: 'chat', body: 'Draft ready.', createdAt: threeDaysAgo },
-    { id: 7, type: 'chat', body: 'No date at all', createdAt: 'not-a-date' },
+    // The supervisor's 16 Nov assignment was stored as type 'chat' — the
+    // prefix reclassification still counts it as today's assignment.
+    { id: 3, type: 'chat', body: 'Supervisor assignment - YOUR KEYWORDS (16 Nov): 20+20 = 40.', createdAt: today },
+    { id: 4, type: 'chat', body: 'Supervisor rule - DRAFT PEER REVIEW (16 Nov): read every draft.', createdAt: today },
+    { id: 5, type: 'blockage', body: 'API is down', createdAt: threeDaysAgo },
+    { id: 6, type: 'blockage', body: 'Old blockage', createdAt: tenDaysAgo },
+    // Word matches must NOT count as drafts any more: this message
+    // mentions a draft and verification, but no draft exists for it.
+    { id: 7, type: 'chat', body: 'Draft ready, waiting for owner verification.', createdAt: threeDaysAgo },
+    { id: 8, type: 'chat', body: 'No date at all', createdAt: 'not-a-date' },
+  ];
+  const pendingDrafts = [
+    { id: 41, slug: 'best-chatgpt-photo-prompts', title: 'Best ChatGPT Photo Prompts', updatedAt: today },
   ];
 
-  const digest = computeDailyDigest(messages, now);
-  assert.deepEqual(digest.assignmentsToday.map((message) => message.id), [1]);
-  assert.deepEqual(digest.blockagesOpen.map((message) => message.id), [3]);
+  const digest = computeDailyDigest(messages, now, { pendingDrafts });
   assert.deepEqual(
-    digest.draftsPendingVerification.map((message) => message.id),
-    [5],
-    'only messages mentioning both a draft and verification count',
+    digest.assignmentsToday.map((message) => message.id),
+    [1, 3],
+    'typed assignments plus the supervisor assignment prefix count',
   );
+  assert.deepEqual(digest.blockagesOpen.map((message) => message.id), [5]);
+  assert.deepEqual(
+    digest.pendingDrafts,
+    pendingDrafts,
+    'real drafts from the API only — never a word match over chat text',
+  );
+});
+
+test('computeDailyDigest shows zero drafts when none exist', () => {
+  const now = new Date();
+  const messages = [
+    { id: 1, type: 'chat', body: 'Draft ready, waiting for owner verification.', createdAt: now.toISOString() },
+  ];
+  // No pendingDrafts option at all: the old word-match count of 13 when
+  // no draft existed must never come back.
+  const digest = computeDailyDigest(messages, now);
+  assert.deepEqual(digest.pendingDrafts, []);
 });
 
 test('computeDailyDigest handles an empty board', () => {
   assert.deepEqual(computeDailyDigest([]), {
     assignmentsToday: [],
     blockagesOpen: [],
-    draftsPendingVerification: [],
+    pendingDrafts: [],
   });
 });
 
@@ -239,11 +306,75 @@ test('avatarColorFor matches the lane roster and falls back to grey', () => {
   assert.equal(avatarColorFor('someone-else@example.com'), 'bg-[#646970]');
 });
 
-test('initialsFor uses the display name, else the email', () => {
+test('initialsFor uses the display name, else the roster initials, else the email', () => {
   assert.equal(initialsFor('Lane 1', 'lane1@aqprompts.com'), 'L1');
   assert.equal(initialsFor('Abdul Qudoos', 'abdul@aqprompts.com'), 'AQ');
   assert.equal(initialsFor(null, 'lane1@aqprompts.com'), 'LA');
-  assert.equal(initialsFor('', 'abdulqudoos1347@gmail.com'), 'AB');
+  // Roster emails without a display name get roster initials — the old
+  // code gave "AB" for BOTH lanes because both emails start with
+  // "abdulqudoos".
+  assert.equal(initialsFor('', 'abdulqudoos4473988@gmail.com'), 'L1');
+  assert.equal(initialsFor(null, 'abdulqudoos5374@gmail.com'), 'L2');
+  assert.equal(initialsFor('', 'abdulqudoos1347@gmail.com'), 'SU');
+  assert.equal(initialsFor(null, 'abdulqudoos.4755@gmail.com'), 'OW');
+});
+
+test('rosterLabelFor and displayNameFor fall back to lane labels, never a raw email', () => {
+  assert.equal(rosterLabelFor('abdulqudoos4473988@gmail.com'), 'Lane 1');
+  assert.equal(rosterLabelFor('abdulqudoos5374@gmail.com'), 'Lane 2');
+  assert.equal(rosterLabelFor('abdulqudoos1347@gmail.com'), 'Supervisor');
+  assert.equal(rosterLabelFor('abdulqudoos.4755@gmail.com'), 'Owner');
+  assert.equal(rosterLabelFor('someone-else@example.com'), null);
+
+  assert.equal(displayNameFor({ displayName: 'Abdul Qudoos', email: 'abdulqudoos1347@gmail.com' }), 'Abdul Qudoos');
+  assert.equal(displayNameFor({ displayName: null, email: 'abdulqudoos4473988@gmail.com' }), 'Lane 1');
+  assert.equal(displayNameFor({ displayName: '', email: 'abdulqudoos5374@gmail.com' }), 'Lane 2');
+  assert.equal(displayNameFor({ displayName: null, email: 'someone-else@example.com' }), 'someone-else@example.com');
+  assert.equal(displayNameFor({}), 'Deleted admin');
+});
+
+test('bubbleClassFor tints each lane differently and falls back to grey', () => {
+  assert.equal(
+    bubbleClassFor('abdulqudoos4473988@gmail.com'),
+    'border-[#b3d4ea] bg-[#e5f1fa] text-[#1d2327]',
+    'Lane 1 is light blue',
+  );
+  assert.equal(
+    bubbleClassFor('abdulqudoos5374@gmail.com'),
+    'border-[#b2d8d5] bg-[#e6f4f3] text-[#1d2327]',
+    'Lane 2 is light teal',
+  );
+  assert.notEqual(
+    bubbleClassFor('abdulqudoos4473988@gmail.com'),
+    bubbleClassFor('abdulqudoos5374@gmail.com'),
+    'the two lanes must never share a bubble',
+  );
+  assert.equal(
+    bubbleClassFor('someone-else@example.com'),
+    'border-[#dcdcde] bg-[#f6f7f7] text-[#1d2327]',
+  );
+});
+
+test('latestAnnouncementFrom and latestLeaderboardPostFrom pick the newest match', () => {
+  const messages = [
+    { id: 1, type: 'announcement', body: 'Old announcement', thread: '' },
+    { id: 2, type: 'chat', body: 'Hello', thread: '' },
+    { id: 3, type: 'announcement', body: 'New announcement', thread: '' },
+    { id: 4, type: 'feedback', body: 'Leaderboard update: Lane 1: 10 points', thread: 'leaderboard' },
+  ];
+  assert.equal(latestAnnouncementFrom(messages).id, 3);
+  assert.equal(latestLeaderboardPostFrom(messages).id, 4);
+  assert.equal(latestAnnouncementFrom([{ id: 1, type: 'chat', body: 'Hi', thread: '' }]), null);
+  assert.equal(latestLeaderboardPostFrom([]), null);
+});
+
+test('countNewMessages counts only ids above the last seen id', () => {
+  const messages = [{ id: 21 }, { id: 22 }, { id: 23 }];
+  assert.equal(countNewMessages(messages, 20), 3);
+  assert.equal(countNewMessages(messages, 22), 1);
+  assert.equal(countNewMessages(messages, 23), 0);
+  assert.equal(countNewMessages([], 0), 0);
+  assert.equal(countNewMessages(messages, null), 3);
 });
 
 test('dayLabel says Today, Yesterday or the date', () => {

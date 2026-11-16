@@ -8,13 +8,17 @@ import {
   MESSAGE_TYPE_META,
   assignmentTemplate,
   avatarColorFor,
+  bubbleClassFor,
   collapsedPreview,
   computeDailyDigest,
+  countNewMessages,
+  displayNameFor,
+  displayTypeFor,
   formatStatusLine,
   groupMessagesForDisplay,
   initialsFor,
-  isAnnouncement,
-  isLeaderboardPost,
+  latestAnnouncementFrom,
+  latestLeaderboardPostFrom,
   parseLeaderboardText,
   parseSlashCommand,
   readReceiptLine,
@@ -53,6 +57,8 @@ function Avatar({ displayName, email }) {
 export default function MessagesPanel({
   initialMessages = [],
   initialReads = [],
+  initialTotal = 0,
+  initialPendingDrafts = [],
   currentUserEmail,
   currentUserId,
   currentDisplayName = null,
@@ -61,6 +67,14 @@ export default function MessagesPanel({
   // The API returns newest first; the board reads oldest at the top.
   const [messages, setMessages] = useState(() => [...initialMessages].reverse());
   const [reads, setReads] = useState(() => [...initialReads]);
+  // The header count and the list share one source of truth: this total
+  // state. The old server-rendered count went stale after a send (23
+  // shown, then back to 22) because it never updated — now every poll
+  // sets it from the API total and every send bumps it with the message.
+  const [total, setTotal] = useState(initialTotal);
+  // Real pending drafts (blog_posts status='draft') from the API, for
+  // the digest. Refreshed on every poll, same as the messages.
+  const [pendingDrafts, setPendingDrafts] = useState(initialPendingDrafts);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -95,9 +109,7 @@ export default function MessagesPanel({
     if (stickToBottomRef.current) {
       scrollToBottom();
     } else if (maxId > maxSeenIdRef.current) {
-      const newCount = messages.filter(
-        (message) => Number(message.id) > maxSeenIdRef.current,
-      ).length;
+      const newCount = countNewMessages(messages, maxSeenIdRef.current);
       if (newCount > 0) setUnreadCount((previous) => previous + newCount);
     }
     maxSeenIdRef.current = Math.max(maxSeenIdRef.current, maxId);
@@ -122,6 +134,10 @@ export default function MessagesPanel({
         return next;
       });
       if (Array.isArray(payload.reads)) setReads(payload.reads);
+      // Count and drafts come from the same poll response as the list,
+      // so all three update together and can never disagree.
+      if (typeof payload.total === 'number') setTotal(payload.total);
+      if (Array.isArray(payload.pendingDrafts)) setPendingDrafts(payload.pendingDrafts);
     } catch {
       // Polling is best-effort; a failed refresh leaves the current list.
     }
@@ -142,6 +158,13 @@ export default function MessagesPanel({
   const jumpToBottom = () => {
     stickToBottomRef.current = true;
     setUnreadCount(0);
+    // Smooth scroll for the button tap (WhatsApp-style); the automatic
+    // stick-to-bottom scroll stays instant so polling never animates.
+    const list = listRef.current;
+    if (list) {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+      return;
+    }
     scrollToBottom();
   };
 
@@ -150,27 +173,32 @@ export default function MessagesPanel({
   // Latest announcement pins to the banner; latest /score post feeds the
   // leaderboard panel. Both are computed from the loaded messages only.
   const latestAnnouncement = useMemo(
-    () => [...messages].reverse().find(isAnnouncement) ?? null,
+    () => latestAnnouncementFrom(messages),
     [messages],
   );
   const latestScorePost = useMemo(
-    () => [...messages].reverse().find(isLeaderboardPost) ?? null,
+    () => latestLeaderboardPostFrom(messages),
     [messages],
   );
   const leaderboardScores = useMemo(
     () => (latestScorePost ? parseLeaderboardText(latestScorePost.body) : null),
     [latestScorePost],
   );
-  const digest = useMemo(() => computeDailyDigest(messages), [messages]);
+  const digest = useMemo(
+    () => computeDailyDigest(messages, undefined, { pendingDrafts }),
+    [messages, pendingDrafts],
+  );
   const groups = useMemo(() => groupMessagesForDisplay(messages), [messages]);
 
   // Everyone who has posted or opened the chat, for the "Seen by" lines.
+  // Names use the roster fallback (Lane 1 / Lane 2 / Supervisor) so a
+  // lane that never set a display name never shows a raw email.
   const participants = useMemo(() => {
     const byId = new Map();
     for (const read of reads) {
       byId.set(Number(read.adminId), {
         adminId: Number(read.adminId),
-        displayName: read.displayName || 'An admin',
+        displayName: displayNameFor({ displayName: read.displayName, email: read.email }),
         lastReadMessageId: Number(read.lastReadMessageId || 0),
       });
     }
@@ -180,7 +208,7 @@ export default function MessagesPanel({
       if (!byId.has(id)) {
         byId.set(id, {
           adminId: id,
-          displayName: message.senderName || 'An admin',
+          displayName: displayNameFor({ displayName: message.senderDisplayName, email: message.senderEmail }),
           lastReadMessageId: 0,
         });
       }
@@ -247,6 +275,7 @@ export default function MessagesPanel({
       setUnreadCount(0);
       if (payload.message) {
         setMessages((previous) => [...previous, payload.message]);
+        setTotal((previous) => previous + 1);
       } else {
         await refresh();
       }
@@ -293,6 +322,18 @@ export default function MessagesPanel({
         await sendPost({ body: command.args, type: 'announcement' });
         return;
       }
+      if (command.name === 'rule') {
+        if (!canModerate) {
+          setError('Only the supervisor or the owner can post rules.');
+          return;
+        }
+        if (!command.args) {
+          setError('Usage: /rule <text>');
+          return;
+        }
+        await sendPost({ body: command.args, type: 'rule' });
+        return;
+      }
       if (command.name === 'score') {
         if (!canModerate) {
           setError('Only the supervisor or the owner can post scores.');
@@ -311,7 +352,10 @@ export default function MessagesPanel({
       }
       if (command.name === 'status') {
         await sendPost({
-          body: formatStatusLine(displayName || currentUserEmail, command.args),
+          body: formatStatusLine(
+            displayNameFor({ displayName, email: currentUserEmail }),
+            command.args,
+          ),
           type: 'chat',
         });
         return;
@@ -427,9 +471,24 @@ export default function MessagesPanel({
   // --- Render ----------------------------------------------------------------
 
   return (
-    <div className="flex max-h-[calc(100dvh-9rem)] min-h-0 flex-1 flex-col overflow-hidden rounded border border-[#c3c4c7] bg-white shadow-sm sm:max-h-[760px]">
-      {/* Display name — each admin sets only their own name; the email
-          stays the identity underneath. */}
+    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+      {/* Chat column. The count lives here, driven by the same total
+          state as the list, so the two can never disagree. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <p className="pb-3 text-sm text-[#646970]">
+          {total} {total === 1 ? 'message' : 'messages'}
+        </p>
+        {/* The card has a DEFINITE height (not just a max-height cap):
+            100dvh minus the admin header + page padding + count line on
+            mobile, the same minus less on desktop, capped at 760px.
+            Without a definite height here, the list below relied on
+            h-full (a percentage) resolving through a flex chain anchored
+            only by min-height — when that failed, the list grew to its
+            content height, the card's overflow-hidden clipped it, and
+            nothing below the fold could be reached at all. */}
+        <div className="flex h-[calc(100dvh-11rem)] min-h-0 shrink-0 flex-col overflow-hidden rounded border border-[#c3c4c7] bg-white shadow-sm sm:h-[calc(100dvh-9rem)] sm:max-h-[760px]">
+          {/* Display name — each admin sets only their own name; the email
+              stays the identity underneath. */}
       <form
         onSubmit={handleSaveDisplayName}
         className="flex flex-wrap items-center gap-2 border-b border-[#dcdcde] px-4 py-3"
@@ -474,58 +533,17 @@ export default function MessagesPanel({
         </div>
       )}
 
-      {/* Daily digest — computed from the loaded messages only. */}
-      <div className="border-b border-[#dcdcde] bg-[#f6f7f7] px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
-          Today&apos;s digest
-        </p>
-        <ul className="mt-1 space-y-0.5 text-[13px] text-[#1d2327]">
-          <li>Assignments today: {digest.assignmentsToday.length}</li>
-          <li>Open blockages: {digest.blockagesOpen.length}</li>
-          <li>
-            Drafts pending owner verification: {digest.draftsPendingVerification.length}
-            {' '}
-            <span className="text-[#646970]">(mentioned in chat)</span>
-          </li>
-        </ul>
-      </div>
-
-      {/* Leaderboard — the latest /score post, parsed; never invented. */}
-      <div className="border-b border-[#dcdcde] px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
-          Leaderboard
-        </p>
-        {leaderboardScores ? (
-          <p className="mt-1 text-[13px] text-[#1d2327]">
-            {leaderboardScores.lane1 && (
-              <span>
-                Lane 1: {leaderboardScores.lane1.points} points
-                {leaderboardScores.lane1.rank ? ` (Rank ${leaderboardScores.lane1.rank})` : ''}
-              </span>
-            )}
-            {leaderboardScores.lane1 && leaderboardScores.lane2 && <span className="mx-2 text-[#8c8f94]">|</span>}
-            {leaderboardScores.lane2 && (
-              <span>
-                Lane 2: {leaderboardScores.lane2.points} points
-                {leaderboardScores.lane2.rank ? ` (Rank ${leaderboardScores.lane2.rank})` : ''}
-              </span>
-            )}
-          </p>
-        ) : latestScorePost ? (
-          <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#1d2327]">
-            {latestScorePost.body.replace(LEADERBOARD_PREFIX, '').trim()}
-          </p>
-        ) : (
-          <p className="mt-1 text-[13px] text-[#646970]">No scores posted yet</p>
-        )}
-      </div>
-
-      {/* Message list */}
+      {/* Message list — the scroll area. The list is absolutely
+          positioned to fill its wrapper (no h-full percentage: the old
+          percentage height failed to resolve through the min-height
+          flex chain, so the list grew to content height and the card
+          clipped it). overscroll-contain keeps list scrolling from
+          chaining into page scroll, WhatsApp-style. */}
       <div className="relative min-h-0 flex-1">
         <div
           ref={listRef}
           onScroll={handleScroll}
-          className="h-full overflow-y-auto px-4 py-4"
+          className="absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4"
           aria-live="polite"
         >
           {messages.length === 0 && (
@@ -553,7 +571,7 @@ export default function MessagesPanel({
                     const isFirst = index === 0;
                     const collapsed = shouldCollapseMessage(message.body)
                       && !expandedIds.has(message.id);
-                    const meta = MESSAGE_TYPE_META[message.type] || MESSAGE_TYPE_META.chat;
+                    const meta = MESSAGE_TYPE_META[displayTypeFor(message)] || MESSAGE_TYPE_META.chat;
                     const receipt = readReceiptLine(message, participants, currentUserId);
                     return (
                       <div
@@ -567,7 +585,7 @@ export default function MessagesPanel({
                           className={`max-w-[80%] rounded-lg border px-3 py-2 ${
                             isOwn
                               ? 'border-[#2271b1] bg-[#2271b1] text-white'
-                              : 'border-[#dcdcde] bg-[#f6f7f7] text-[#1d2327]'
+                              : bubbleClassFor(message.senderEmail)
                           }`}
                         >
                           {isFirst && (
@@ -631,10 +649,11 @@ export default function MessagesPanel({
         )}
       </div>
 
-      {/* Composer — WhatsApp-style: one row, rounded input + circular send
-          button at the right end. No footer row: the character limit is
-          enforced silently and polling runs every 5 seconds without a
-          visible note. Ctrl+Enter sends; plain Enter adds a newline. */}
+      {/* Composer — WhatsApp-style: one rounded pill, the send button
+          inside the write box at the bottom-right, always visible at
+          the bottom of the card (it is a flex child, not a scroller).
+          No footer row: polling runs every 5 seconds without a visible
+          note. Ctrl+Enter sends; plain Enter adds a newline. */}
       <form onSubmit={handleSubmit} className="sticky bottom-0 border-t border-[#dcdcde] bg-white px-3 py-2">
         {error && (
           <p className="mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -657,6 +676,7 @@ export default function MessagesPanel({
               {[
                 { usage: '/announce <text>', text: 'Post a pinned announcement (Supervisor / owner only).' },
                 { usage: '/assign', text: 'Open the keyword assignment format to fill in.' },
+                { usage: '/rule <text>', text: 'Post a rule for the lanes (Supervisor / owner only).' },
                 { usage: '/score Lane 1: <points> (Rank <n>) | Lane 2: <points> (Rank <n>)', text: 'Post the latest leaderboard scores (Supervisor / owner only).' },
                 { usage: '/status <text>', text: 'Post a heartbeat / status line.' },
                 { usage: '/help', text: 'List all slash commands.' },
@@ -694,7 +714,10 @@ export default function MessagesPanel({
             ))}
           </ul>
         )}
-        <div className="flex items-end gap-2">
+        {/* WhatsApp-style: the send button sits INSIDE the write box,
+            bottom-right, so the composer is one rounded pill. The
+            textarea keeps right padding so text never runs under it. */}
+        <div className="relative flex-1">
           <label htmlFor="agent-message-body" className="sr-only">
             Write a message
           </label>
@@ -707,15 +730,15 @@ export default function MessagesPanel({
             maxLength={MAX_BODY_LENGTH}
             rows={1}
             placeholder={canModerate ? 'Write a message… (type / for commands)' : 'Write a message…'}
-            className="min-h-[44px] max-h-[120px] flex-1 resize-none overflow-y-auto rounded-3xl border border-[#8c8f94] px-4 py-2.5 text-sm text-[#1d2327] outline-none focus:border-[#2271b1] focus:ring-2 focus:ring-[#2271b1]/30"
+            className="min-h-[44px] max-h-[120px] w-full resize-none overflow-y-auto rounded-3xl border border-[#8c8f94] py-2.5 pl-4 pr-12 text-sm text-[#1d2327] outline-none focus:border-[#2271b1] focus:ring-2 focus:ring-[#2271b1]/30"
           />
           <button
             type="submit"
             disabled={sending || !body.trim()}
             aria-label="Send message"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2271b1] text-white transition hover:bg-[#135e96] disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute bottom-[6px] right-[6px] flex h-8 w-8 items-center justify-center rounded-full bg-[#2271b1] text-white transition hover:bg-[#135e96] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M3 20.5 21 12 3 3.5l-.01 7.05L14 12 2.99 13.45 3 20.5Z"
                 fill="currentColor"
@@ -724,6 +747,74 @@ export default function MessagesPanel({
           </button>
         </div>
       </form>
+        </div>
+      </div>
+
+      {/* Side panel — digest + leaderboard. On mobile it stacks below
+          the chat, so the chat keeps its full-height sticky composer. */}
+      <aside className="w-full shrink-0 lg:w-72">
+        <div className="space-y-4">
+          {/* Daily digest — the drafts are the REAL blog drafts
+              (blog_posts status='draft') from the API, listed by title
+              with a link to each draft in the admin panel. */}
+          <div className="rounded border border-[#c3c4c7] bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
+              Today&apos;s digest
+            </p>
+            <ul className="mt-1 space-y-0.5 text-[13px] text-[#1d2327]">
+              <li>Assignments today: {digest.assignmentsToday.length}</li>
+              <li>Open blockages: {digest.blockagesOpen.length}</li>
+              <li>Drafts pending owner verification: {pendingDrafts.length}</li>
+            </ul>
+            {pendingDrafts.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {pendingDrafts.map((draft) => (
+                  <li key={draft.id}>
+                    <a
+                      href={`/admin/blog/${draft.slug}`}
+                      className="text-[13px] font-medium text-[#2271b1] hover:underline"
+                    >
+                      {draft.title || '(Untitled draft)'}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-[13px] text-[#646970]">No drafts pending verification.</p>
+            )}
+          </div>
+
+          {/* Leaderboard — the latest /score post, parsed; never invented. */}
+          <div className="rounded border border-[#c3c4c7] bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
+              Leaderboard
+            </p>
+            {leaderboardScores ? (
+              <p className="mt-1 text-[13px] text-[#1d2327]">
+                {leaderboardScores.lane1 && (
+                  <span>
+                    Lane 1: {leaderboardScores.lane1.points} points
+                    {leaderboardScores.lane1.rank ? ` (Rank ${leaderboardScores.lane1.rank})` : ''}
+                  </span>
+                )}
+                {leaderboardScores.lane1 && leaderboardScores.lane2 && <span className="mx-2 text-[#8c8f94]">|</span>}
+                {leaderboardScores.lane2 && (
+                  <span>
+                    Lane 2: {leaderboardScores.lane2.points} points
+                    {leaderboardScores.lane2.rank ? ` (Rank ${leaderboardScores.lane2.rank})` : ''}
+                  </span>
+                )}
+              </p>
+            ) : latestScorePost ? (
+              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#1d2327]">
+                {latestScorePost.body.replace(LEADERBOARD_PREFIX, '').trim()}
+              </p>
+            ) : (
+              <p className="mt-1 text-[13px] text-[#646970]">No scores posted yet</p>
+            )}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 import { getDatabaseUrl } from '../src/lib/db.js';
 import {
   ensurePromptEngagementSchema,
+  findRecentPromptFeedback,
+  getPromptEngagementCounts,
   incrementPromptViewCount,
   incrementPromptLikeCount,
   submitPromptFeedback,
@@ -51,6 +53,31 @@ const fakePool = {
     if (sql.startsWith('ALTER TABLE')) {
       alterStatements.push(sql);
       return { rows: [], rowCount: 0 };
+    }
+
+    if (sql.startsWith('SELECT view_count')) {
+      const prompt = prompts.get(Number(bound[0]));
+      if (!prompt || prompt.status !== 'published') return { rows: [], rowCount: 0 };
+      return {
+        rows: [{ viewCount: prompt.view_count, likeCount: prompt.like_count }],
+        rowCount: 1,
+      };
+    }
+
+    if (sql.startsWith('SELECT id FROM public.site_reviews')) {
+      const [promptId, ipHash, rating, reviewText] = bound;
+      const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+      const found = reviews
+        .filter(
+          (row) => row.prompt_id === Number(promptId)
+            && row.ip_hash === ipHash
+            && row.rating === Number(rating)
+            && row.review_text === reviewText
+            && row.source === 'prompt'
+            && Date.parse(row.created_at) > twoMinutesAgo,
+        )
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+      return { rows: found ? [{ id: found.id }] : [], rowCount: found ? 1 : 0 };
     }
 
     if (sql.startsWith('UPDATE prompts SET view_count')) {
@@ -193,6 +220,52 @@ test('ensurePromptEngagementSchema adds both counter columns once', async () => 
   assert.ok(alterStatements[0].includes('ADD COLUMN'));
   assert.ok(alterStatements[0].includes('view_count'));
   assert.ok(alterStatements[1].includes('like_count'));
+});
+
+test('getPromptEngagementCounts returns live view and like totals', async () => {
+  assert.deepEqual(await getPromptEngagementCounts(2), { viewCount: 41, likeCount: 7 });
+  assert.equal(await getPromptEngagementCounts(3), null);
+  assert.equal(await getPromptEngagementCounts(999), null);
+});
+
+test('findRecentPromptFeedback only matches the same fresh submission', async () => {
+  const submitted = await submitPromptFeedback({
+    promptId: 1,
+    rating: 5,
+    comment: 'Loved it.',
+    ipHash: 'ip-hash-7',
+    userAgent: 'test-agent',
+  });
+  assert.equal(submitted.limited, false);
+  const found = await findRecentPromptFeedback({
+    promptId: 1, ipHash: 'ip-hash-7', rating: 5, comment: 'Loved it.',
+  });
+  assert.equal(found?.id, submitted.review.id);
+  // A different comment, IP or prompt is a different submission.
+  assert.equal(await findRecentPromptFeedback({
+    promptId: 1, ipHash: 'ip-hash-7', rating: 5, comment: 'Different words.',
+  }), null);
+  assert.equal(await findRecentPromptFeedback({
+    promptId: 1, ipHash: 'other-ip', rating: 5, comment: 'Loved it.',
+  }), null);
+  assert.equal(await findRecentPromptFeedback({
+    promptId: 2, ipHash: 'ip-hash-7', rating: 5, comment: 'Loved it.',
+  }), null);
+});
+
+test('detail page re-reads live engagement counts on mount before posting the view', async () => {
+  const bar = await readFile(
+    new URL('../src/components/prompts/PromptEngagementBar.jsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(bar, /\/api\/prompts\/\$\{promptDbId\}\/engagement/);
+  assert.match(bar, /Math\.max\(current, data\.likeCount\)/);
+  const route = await readFile(
+    new URL('../app/api/prompts/[id]/engagement/route.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(route, /getPromptEngagementCounts/);
+  assert.match(route, /no-store/);
 });
 
 test('incrementPromptViewCount counts every call and returns the new total', async () => {

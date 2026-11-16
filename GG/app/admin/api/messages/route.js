@@ -10,6 +10,7 @@ import {
   isModeratorOnlyType,
   listAgentMessages,
 } from '@/lib/agent-messages-db';
+import { listPendingDraftPosts } from '@/lib/blog-db';
 
 // The leaderboard thread is moderator-only: it feeds the leaderboard
 // panel, and a lane could otherwise spoof scores by posting to it.
@@ -48,7 +49,16 @@ export async function GET(request) {
       beforeId: beforeId == null ? null : Number(beforeId),
     });
 
-    return NextResponse.json({ success: true, ...result });
+    // Real drafts for the digest: blog_posts with status='draft'.
+    // Best-effort — a failed drafts query must not fail the message list.
+    let pendingDrafts = [];
+    try {
+      pendingDrafts = await listPendingDraftPosts();
+    } catch (error) {
+      console.error('[agent-messages] Failed to list pending drafts:', error?.message || error);
+    }
+
+    return NextResponse.json({ success: true, ...result, pendingDrafts });
   } catch (error) {
     if (error instanceof AgentMessageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

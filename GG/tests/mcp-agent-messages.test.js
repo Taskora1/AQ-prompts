@@ -123,7 +123,10 @@ const fakeClient = {
           return {
             adminId: row.admin_id,
             lastReadMessageId: row.last_read_message_id,
-            displayName: user?.display_name || user?.email || '',
+            // Raw display name (null when unset) plus the email, so the
+            // DB layer can apply the roster fallback itself.
+            displayName: user?.display_name ?? null,
+            email: user?.email || '',
           };
         }),
         rowCount: reads.length,

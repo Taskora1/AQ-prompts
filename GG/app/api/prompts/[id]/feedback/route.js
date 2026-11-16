@@ -3,11 +3,36 @@ import { NextResponse } from 'next/server';
 import { getClientIp } from '@/lib/rate-limit';
 import { hashReviewIp } from '@/lib/site-reviews-db';
 import {
+  findRecentPromptFeedback,
   getPromptFeedbackSummary,
   submitPromptFeedback,
   validatePromptFeedbackInput,
   PromptEngagementValidationError,
 } from '@/lib/prompt-engagement-db';
+
+// Submit once; on a transient failure, check whether the row actually
+// landed before retrying once, so a retry can never create a duplicate.
+// (The live submit failed twice in the minutes after the deploy while
+// the Worker was also throwing 1102s on the homepage — a transient D1 /
+// Worker error on the way back from the INSERT. The INSERT itself is
+// verified working; this retry makes the POST survive that class of
+// failure instead of showing the user an error for a write that may
+// already have happened.)
+async function submitFeedbackWithRetry({ promptId, rating, comment, ipHash, userAgent }) {
+  try {
+    return await submitPromptFeedback({ promptId, rating, comment, ipHash, userAgent });
+  } catch (firstError) {
+    if (firstError instanceof PromptEngagementValidationError) throw firstError;
+    let alreadySaved = null;
+    try {
+      alreadySaved = await findRecentPromptFeedback({ promptId, ipHash, rating, comment });
+    } catch {
+      alreadySaved = null;
+    }
+    if (alreadySaved) return { limited: false, review: alreadySaved };
+    return submitPromptFeedback({ promptId, rating, comment, ipHash, userAgent });
+  }
+}
 
 // Per-prompt feedback: star rating (required) + short comment (optional),
 // anonymous, no login. Rows live in public.site_reviews with
@@ -59,7 +84,7 @@ export async function POST(request, { params }) {
       // Rate limiting degrades to one shared bucket in that case.
       ipHash = 'unknown';
     }
-    const result = await submitPromptFeedback({
+    const result = await submitFeedbackWithRetry({
       promptId: id,
       rating: input?.rating,
       comment,
@@ -78,7 +103,10 @@ export async function POST(request, { params }) {
     if (error instanceof PromptEngagementValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    console.error('Prompt feedback submission failed:', error?.code || error?.name || 'unknown');
+    // Log the message too (not just code/name): a D1 failure's message is
+    // what identifies it in the Worker logs, and the live failure left
+    // only the generic 500 behind.
+    console.error('Prompt feedback submission failed:', error?.message || error?.code || error?.name || 'unknown');
     return NextResponse.json({ error: 'Feedback could not be submitted. Please try again.' }, { status: 500 });
   }
 }

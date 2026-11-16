@@ -181,6 +181,35 @@ export async function ensureBlogTable() {
  * Get all blog posts for admin (includes drafts).
  * Reads directly from Neon — no caching for admin views.
  */
+// Pending blog drafts for the agent-chat digest: the REAL drafts
+// awaiting the owner's verification (blog_posts status='draft'), newest
+// first. One lean query — the digest runs on every 5-second poll, so it
+// must not run the admin list's four-query Promise.all. Returns only
+// what the digest shows: id, slug, title and updated time.
+export async function listPendingDraftPosts(limit = 50) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
+  const result = await getPgPool().query(
+    `
+      SELECT
+        id,
+        slug,
+        title,
+        updated_at::text AS "updatedAt"
+      FROM blog_posts
+      WHERE status = 'draft'
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $1
+    `,
+    [safeLimit],
+  );
+  return (result.rows || []).map((row) => ({
+    id: Number(row.id),
+    slug: row.slug,
+    title: row.title || '',
+    updatedAt: row.updatedAt || '',
+  }));
+}
+
 export async function listBlogPostsForAdmin({
   page = 1,
   pageSize = 30,
