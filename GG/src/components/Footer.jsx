@@ -83,6 +83,19 @@ export default function Footer() {
             >
               Featured on Findly.tools
             </a>
+            <a
+              href="https://launchkiwi.com/p/aqprompts"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 block w-fit"
+            >
+              <img
+                src="https://launchkiwi.com/badge-dark.svg"
+                alt="Featured on LaunchKiwi"
+                width="198"
+                height="62"
+              />
+            </a>
           </div>
 
           {footerGroups.map((group, index) => {
