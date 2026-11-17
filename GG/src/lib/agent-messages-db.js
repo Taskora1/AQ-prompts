@@ -25,10 +25,12 @@
 // Retention: messages auto-delete 30 days after they were created. The
 // prune is lazy — it runs inside listAgentMessages, the single read path
 // shared by the admin API route, the Messages page, and the MCP
-// list_agent_messages tool — so every list also clears out expired rows.
-// No cron or scheduled job: the board is read at least once a day by the
-// lanes, so expired rows never linger long. created_at already exists, so
-// no schema change is needed.
+// list_agent_messages tool — so every full list also clears out expired
+// rows. The panel's lightweight since-poll (see listAgentMessages) skips
+// the prune: a DELETE on every poll is what made the board the heaviest
+// admin page under the Workers free limits. No cron or scheduled job: the
+// board is read at least once a day by the lanes, so expired rows never
+// linger long. created_at already exists, so no schema change is needed.
 //
 // Table creation follows the established D1 pattern in this codebase
 // (ensureBlogTable in blog-db.js, ensurePasswordResetTable in
@@ -402,45 +404,89 @@ export async function listAgentMessages({
   pageSize = DEFAULT_MESSAGE_PAGE_SIZE,
   viewerAdminId = null,
   beforeId = null,
+  sinceId = null,
 } = {}) {
   const currentPage = normalizePage(page, 1);
   const currentPageSize = normalizePageSize(pageSize, DEFAULT_MESSAGE_PAGE_SIZE);
   await ensureAgentMessagesTable();
+
+  // Lightweight since-poll (the panel's 30-second check): one indexed id
+  // lookup. Nothing newer than sinceId → return early with no COUNT, no
+  // prune, no read-receipt writes and no reads fetch. This is the common
+  // case, and it is what keeps the board light: the old code ran ~9
+  // database calls, three of them writes, every 5 seconds per open tab.
+  // New messages → fall through to the full sequence below, so readAt and
+  // readBy stay exactly as they were.
+  const isSincePoll = sinceId != null;
+  if (isSincePoll) {
+    const since = Number(sinceId);
+    if (!Number.isSafeInteger(since) || since < 0) {
+      throw new AgentMessageValidationError('sinceId must be a non-negative integer.');
+    }
+    const check = await getPgPool().query(
+      `SELECT m.id FROM agent_messages m WHERE m.id > $1 ORDER BY m.id DESC LIMIT 1`,
+      [since],
+    );
+    if (check.rows.length === 0) {
+      return {
+        messages: [],
+        total: null,
+        page: 1,
+        pageSize: currentPageSize,
+        totalPages: null,
+        reads: null,
+      };
+    }
+  }
+
   // Prune first, so the count and the page below reflect the post-prune
   // state and read receipts are not written for rows about to be deleted.
-  await pruneExpiredAgentMessages();
+  // A since-poll that found new messages skips the prune: it runs on the
+  // next full-list read instead, so the poll never pays for a DELETE.
+  if (!isSincePoll) {
+    await pruneExpiredAgentMessages();
+  }
   await markMessagesRead(viewerAdminId);
 
-  const conditions = [];
-  const values = [];
+  const countConditions = [];
+  const countValues = [];
   if (beforeId != null) {
     const before = Number(beforeId);
     if (!Number.isSafeInteger(before) || before < 1) {
       throw new AgentMessageValidationError('beforeId must be a positive integer.');
     }
-    values.push(before);
-    conditions.push(`m.id < $${values.length}`);
+    countValues.push(before);
+    countConditions.push(`m.id < $${countValues.length}`);
   }
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  // The count is the header total (all messages), so it never carries the
+  // since filter; the list below does.
+  const countWhere = countConditions.length > 0 ? `WHERE ${countConditions.join(' AND ')}` : '';
+  const listConditions = [...countConditions];
+  const listValues = [...countValues];
+  if (isSincePoll) {
+    listValues.push(Number(sinceId));
+    listConditions.push(`m.id > $${listValues.length}`);
+  }
+  const listWhere = listConditions.length > 0 ? `WHERE ${listConditions.join(' AND ')}` : '';
 
   const count = await getPgPool().query(
-    `SELECT COUNT(*)::int AS total FROM agent_messages m ${where}`,
-    values,
+    `SELECT COUNT(*)::int AS total FROM agent_messages m ${countWhere}`,
+    countValues,
   );
   const total = Number(count.rows[0]?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / currentPageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const listValues = [...values];
-  listValues.push(currentPageSize, (safePage - 1) * currentPageSize);
+  const listQueryValues = [...listValues];
+  listQueryValues.push(currentPageSize, (safePage - 1) * currentPageSize);
   const rows = await getPgPool().query(
     `
       SELECT ${MESSAGE_COLUMNS}
       FROM ${MESSAGE_FROM}
-      ${where}
+      ${listWhere}
       ORDER BY m.created_at DESC, m.id DESC
-      LIMIT $${listValues.length - 1} OFFSET $${listValues.length}
+      LIMIT $${listQueryValues.length - 1} OFFSET $${listQueryValues.length}
     `,
-    listValues,
+    listQueryValues,
   );
 
   const listed = rows.rows;

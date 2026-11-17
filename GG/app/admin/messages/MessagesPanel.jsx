@@ -26,7 +26,11 @@ import {
   slashCommandSuggestions,
 } from '@/lib/agent-chat-commands';
 
-const POLL_INTERVAL_MS = 5_000;
+// 30 seconds, not 5: the old 5-second poll ran ~9 database calls, three
+// of them writes, per open tab — that is what kept hitting the Workers
+// free limits. Each poll now asks only "anything newer than my newest
+// message?" and fetches the full list only when the answer is yes.
+const POLL_INTERVAL_MS = 30_000;
 const MAX_BODY_LENGTH = 5000;
 const MAX_DISPLAY_NAME_LENGTH = 80;
 
@@ -58,7 +62,6 @@ export default function MessagesPanel({
   initialMessages = [],
   initialReads = [],
   initialTotal = 0,
-  initialPendingDrafts = [],
   currentUserEmail,
   currentUserId,
   currentDisplayName = null,
@@ -72,14 +75,12 @@ export default function MessagesPanel({
   // shown, then back to 22) because it never updated — now every poll
   // sets it from the API total and every send bumps it with the message.
   const [total, setTotal] = useState(initialTotal);
-  // Real pending drafts (blog_posts status='draft') from the API, for
-  // the digest. Refreshed on every poll, same as the messages.
-  const [pendingDrafts, setPendingDrafts] = useState(initialPendingDrafts);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [displayName, setDisplayName] = useState(currentDisplayName);
   const [displayNameInput, setDisplayNameInput] = useState(currentDisplayName ?? '');
+  const [editingName, setEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
   const [nameError, setNameError] = useState('');
@@ -115,29 +116,30 @@ export default function MessagesPanel({
     maxSeenIdRef.current = Math.max(maxSeenIdRef.current, maxId);
   }, [messages, scrollToBottom]);
 
+  // Since-poll: ask only for messages newer than the newest one already
+  // shown. With nothing new the server answers with one indexed id
+  // lookup (no list, no count, no writes), so the total and the reads
+  // stay as they are — the payload leaves them out (null / absent) and
+  // only a poll that found new messages carries fresh ones.
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch('/admin/api/messages?pageSize=50', {
+      const since = maxSeenIdRef.current || 0;
+      const response = await fetch(`/admin/api/messages?since=${since}&pageSize=50`, {
         credentials: 'same-origin',
       });
       if (!response.ok) return;
       const payload = await response.json();
       if (!Array.isArray(payload.messages)) return;
-      const next = [...payload.messages].reverse();
-      setMessages((previous) => {
-        if (
-          previous.length === next.length
-          && previous.every((message, index) => message.id === next[index]?.id)
-        ) {
-          return previous;
-        }
-        return next;
-      });
+      if (payload.messages.length > 0) {
+        const incoming = [...payload.messages].reverse();
+        setMessages((previous) => {
+          const seen = new Set(previous.map((message) => message.id));
+          const fresh = incoming.filter((message) => !seen.has(message.id));
+          return fresh.length > 0 ? [...previous, ...fresh] : previous;
+        });
+      }
       if (Array.isArray(payload.reads)) setReads(payload.reads);
-      // Count and drafts come from the same poll response as the list,
-      // so all three update together and can never disagree.
       if (typeof payload.total === 'number') setTotal(payload.total);
-      if (Array.isArray(payload.pendingDrafts)) setPendingDrafts(payload.pendingDrafts);
     } catch {
       // Polling is best-effort; a failed refresh leaves the current list.
     }
@@ -185,8 +187,8 @@ export default function MessagesPanel({
     [latestScorePost],
   );
   const digest = useMemo(
-    () => computeDailyDigest(messages, undefined, { pendingDrafts }),
-    [messages, pendingDrafts],
+    () => computeDailyDigest(messages),
+    [messages],
   );
   const groups = useMemo(() => groupMessagesForDisplay(messages), [messages]);
 
@@ -238,6 +240,7 @@ export default function MessagesPanel({
       }
       setDisplayName(payload.displayName ?? null);
       setNameSaved(true);
+      setEditingName(false);
       // The next poll re-fetches sender names; update our own rows now.
       setMessages((previous) => previous.map((message) => (
         message.senderAdminId === currentUserId
@@ -475,59 +478,76 @@ export default function MessagesPanel({
       {/* Chat column. The count lives here, driven by the same total
           state as the list, so the two can never disagree. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <p className="pb-3 text-sm text-[#646970]">
-          {total} {total === 1 ? 'message' : 'messages'}
-        </p>
         {/* The card has a DEFINITE height (not just a max-height cap):
-            100dvh minus the admin header + page padding + count line on
-            mobile, the same minus less on desktop, capped at 760px.
-            Without a definite height here, the list below relied on
-            h-full (a percentage) resolving through a flex chain anchored
-            only by min-height — when that failed, the list grew to its
-            content height, the card's overflow-hidden clipped it, and
-            nothing below the fold could be reached at all. */}
-        <div className="flex h-[calc(100dvh-11rem)] min-h-0 shrink-0 flex-col overflow-hidden rounded border border-[#c3c4c7] bg-white shadow-sm sm:h-[calc(100dvh-9rem)] sm:max-h-[760px]">
-          {/* Display name — each admin sets only their own name; the email
-              stays the identity underneath. */}
-      <form
-        onSubmit={handleSaveDisplayName}
-        className="flex flex-wrap items-center gap-2 border-b border-[#dcdcde] px-4 py-3"
-      >
-        <label htmlFor="display-name" className="text-[13px] font-medium text-[#1d2327]">
-          My display name
-        </label>
-        <input
-          id="display-name"
-          type="text"
-          value={displayNameInput}
-          onChange={(event) => setDisplayNameInput(event.target.value)}
-          maxLength={MAX_DISPLAY_NAME_LENGTH}
-          placeholder={currentUserEmail}
-          className="min-w-0 flex-1 rounded border border-[#8c8f94] px-2 py-1.5 text-sm text-[#1d2327] outline-none focus:border-[#2271b1] focus:ring-2 focus:ring-[#2271b1]/30"
-        />
-        <button
-          type="submit"
-          disabled={savingName}
-          className="inline-flex h-8 items-center justify-center rounded bg-[#2271b1] px-3 text-[13px] font-semibold text-white transition hover:bg-[#135e96] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {savingName ? 'Saving…' : 'Save'}
-        </button>
-        {nameSaved && <span className="text-xs text-green-700">Saved</span>}
-        {nameError && (
-          <span className="text-xs text-red-700" role="alert">{nameError}</span>
-        )}
-      </form>
+            100dvh minus the admin header + page padding on mobile, the
+            same minus less on desktop, capped at 760px. Without a definite
+            height here, the list below relied on h-full (a percentage)
+            resolving through a flex chain anchored only by min-height —
+            when that failed, the list grew to its content height, the
+            card's overflow-hidden clipped it, and nothing below the fold
+            could be reached at all. */}
+        <div className="flex h-[calc(100dvh-11rem)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl border border-[#dcdcde] bg-white shadow-md sm:h-[calc(100dvh-9rem)] sm:max-h-[760px]">
+          {/* Header — title, message count and your display name in one
+              slim bar. The name editor opens inline instead of taking a
+              full form row on every view. */}
+          <div className="flex items-center gap-3 border-b border-[#e5e5e5] bg-[#fbfbfc] px-4 py-2.5">
+            <Avatar displayName={displayName} email={currentUserEmail} />
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-semibold leading-tight text-[#1d2327]">
+                Agent chat
+              </p>
+              <p className="truncate text-xs leading-tight text-[#646970]">
+                {total} {total === 1 ? 'message' : 'messages'} · Supervisor, Lane 1, Lane 2
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingName((open) => !open)}
+              aria-expanded={editingName}
+              className="ml-auto shrink-0 rounded-full border border-[#dcdcde] bg-white px-3 py-1.5 text-xs font-medium text-[#1d2327] transition hover:border-[#2271b1] hover:text-[#2271b1]"
+            >
+              {displayNameFor({ displayName, email: currentUserEmail })} · Edit name
+            </button>
+          </div>
+          {editingName && (
+            <form
+              onSubmit={handleSaveDisplayName}
+              className="flex flex-wrap items-center gap-2 border-b border-[#e5e5e5] bg-[#fbfbfc] px-4 py-2.5"
+            >
+              <label htmlFor="display-name" className="text-[13px] font-medium text-[#1d2327]">
+                My display name
+              </label>
+              <input
+                id="display-name"
+                type="text"
+                value={displayNameInput}
+                onChange={(event) => setDisplayNameInput(event.target.value)}
+                maxLength={MAX_DISPLAY_NAME_LENGTH}
+                placeholder={currentUserEmail}
+                className="min-w-0 flex-1 rounded-full border border-[#8c8f94] px-3 py-1.5 text-sm text-[#1d2327] outline-none focus:border-[#2271b1] focus:ring-2 focus:ring-[#2271b1]/30"
+              />
+              <button
+                type="submit"
+                disabled={savingName}
+                className="inline-flex h-8 items-center justify-center rounded-full bg-[#2271b1] px-3 text-[13px] font-semibold text-white transition hover:bg-[#135e96] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingName ? 'Saving…' : 'Save'}
+              </button>
+              {nameSaved && <span className="text-xs text-green-700">Saved</span>}
+              {nameError && (
+                <span className="text-xs text-red-700" role="alert">{nameError}</span>
+              )}
+            </form>
+          )}
 
       {/* Pinned announcement — the latest announcement, always visible. */}
       {latestAnnouncement && (
-        <div className="border-b border-purple-200 bg-purple-50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-            Pinned announcement
+        <div className="border-b border-purple-100 bg-[#faf5ff] px-4 py-2.5">
+          <p className="text-[13px] leading-snug text-[#1d2327]">
+            <span className="mr-1.5 font-semibold text-purple-700">📌 Announcement</span>
+            <span className="whitespace-pre-wrap break-words">{latestAnnouncement.body}</span>
           </p>
-          <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#1d2327]">
-            {latestAnnouncement.body}
-          </p>
-          <p className="mt-1 text-[11px] text-[#646970]">
+          <p className="mt-0.5 text-[11px] text-[#646970]">
             {latestAnnouncement.senderName} · {formatTime(latestAnnouncement.createdAt)}
           </p>
         </div>
@@ -543,7 +563,7 @@ export default function MessagesPanel({
         <div
           ref={listRef}
           onScroll={handleScroll}
-          className="absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4"
+          className="absolute inset-0 overflow-y-auto overscroll-contain bg-[#f6f7f8] px-3 py-4 sm:px-4"
           aria-live="polite"
         >
           {messages.length === 0 && (
@@ -552,19 +572,19 @@ export default function MessagesPanel({
               and each lane replies when it starts work.
             </p>
           )}
-          <div className="space-y-4">
+          <div className="space-y-3">
             {groups.map((entry) => {
               if (entry.kind === 'date') {
                 return (
                   <div key={entry.key} className="flex justify-center py-1">
-                    <span className="rounded-full bg-[#e5e5e5] px-3 py-1 text-[11px] font-medium text-[#646970]">
+                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-[#646970] shadow-sm ring-1 ring-[#e5e5e5]">
                       {entry.label}
                     </span>
                   </div>
                 );
               }
               return (
-                <div key={entry.key} className="space-y-1.5">
+                <div key={entry.key} className="space-y-1">
                   {entry.messages.map((message, index) => {
                     const isOwn = message.senderAdminId === currentUserId
                       || message.senderEmail === currentUserEmail;
@@ -582,10 +602,10 @@ export default function MessagesPanel({
                           ? <Avatar displayName={message.senderDisplayName} email={message.senderEmail} />
                           : <span className="w-8 shrink-0" aria-hidden="true" />)}
                         <div
-                          className={`max-w-[80%] rounded-lg border px-3 py-2 ${
+                          className={`max-w-[85%] rounded-2xl border px-3 py-2 shadow-sm sm:max-w-[75%] ${
                             isOwn
-                              ? 'border-[#2271b1] bg-[#2271b1] text-white'
-                              : bubbleClassFor(message.senderEmail)
+                              ? 'rounded-br-md border-[#2271b1] bg-[#2271b1] text-white'
+                              : `rounded-bl-md ${bubbleClassFor(message.senderEmail)}`
                           }`}
                         >
                           {isFirst && (
@@ -596,7 +616,7 @@ export default function MessagesPanel({
                               </span>
                             </p>
                           )}
-                          <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-snug">
+                          <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed">
                             {collapsed ? collapsedPreview(message.body) : message.body}
                           </p>
                           {shouldCollapseMessage(message.body) && (
@@ -612,7 +632,7 @@ export default function MessagesPanel({
                             <button
                               type="button"
                               onClick={() => copyMessage(message)}
-                              className={`text-[11px] underline opacity-70 hover:opacity-100 ${isOwn ? 'text-[#bfe0f5]' : 'text-[#646970]'}`}
+                              className={`text-[11px] font-medium opacity-60 hover:opacity-100 ${isOwn ? 'text-[#bfe0f5]' : 'text-[#646970]'}`}
                             >
                               {copiedId === message.id ? 'Copied ✓' : 'Copy'}
                             </button>
@@ -621,7 +641,7 @@ export default function MessagesPanel({
                             </span>
                           </div>
                           {receipt && (
-                            <p className={`mt-0.5 text-right text-[11px] ${isOwn ? 'text-[#bfe0f5]' : 'text-[#8c8f94]'}`}>
+                            <p className={`mt-0.5 text-right text-[10px] ${isOwn ? 'text-[#bfe0f5]' : 'text-[#8c8f94]'}`}>
                               {receipt}
                             </p>
                           )}
@@ -642,7 +662,7 @@ export default function MessagesPanel({
           <button
             type="button"
             onClick={jumpToBottom}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-[#2271b1] px-4 py-2 text-[13px] font-semibold text-white shadow-lg transition hover:bg-[#135e96]"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#2271b1] px-4 py-2 text-[13px] font-semibold text-white shadow-lg transition hover:bg-[#135e96]"
           >
             {unreadCount} new {unreadCount === 1 ? 'message' : 'messages'} ↓
           </button>
@@ -652,16 +672,16 @@ export default function MessagesPanel({
       {/* Composer — WhatsApp-style: one rounded pill, the send button
           inside the write box at the bottom-right, always visible at
           the bottom of the card (it is a flex child, not a scroller).
-          No footer row: polling runs every 5 seconds without a visible
+          No footer row: polling runs every 30 seconds without a visible
           note. Ctrl+Enter sends; plain Enter adds a newline. */}
-      <form onSubmit={handleSubmit} className="sticky bottom-0 border-t border-[#dcdcde] bg-white px-3 py-2">
+      <form onSubmit={handleSubmit} className="sticky bottom-0 border-t border-[#e5e5e5] bg-white px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
         {error && (
           <p className="mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
             {error}
           </p>
         )}
         {showHelp && (
-          <div className="mb-2 rounded border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2">
+          <div className="mb-2 rounded-xl border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[13px] font-semibold text-[#1d2327]">Slash commands</p>
               <button
@@ -691,7 +711,7 @@ export default function MessagesPanel({
           </div>
         )}
         {suggestions.length > 0 && (
-          <ul className="mb-2 overflow-hidden rounded border border-[#dcdcde] bg-white shadow-sm" role="listbox">
+          <ul className="mb-2 max-h-56 overflow-y-auto rounded-xl border border-[#dcdcde] bg-white shadow-lg" role="listbox">
             {suggestions.map((command, index) => (
               <li key={command.name}>
                 <button
@@ -750,61 +770,53 @@ export default function MessagesPanel({
         </div>
       </div>
 
-      {/* Side panel — digest + leaderboard. On mobile it stacks below
-          the chat, so the chat keeps its full-height sticky composer. */}
+      {/* Side panel — digest + leaderboard. On small screens the two
+          cards sit side by side in a grid; on desktop they stack beside
+          the chat. Both are computed from the loaded messages only — no
+          extra query on any poll. */}
       <aside className="w-full shrink-0 lg:w-72">
-        <div className="space-y-4">
-          {/* Daily digest — the drafts are the REAL blog drafts
-              (blog_posts status='draft') from the API, listed by title
-              with a link to each draft in the admin panel. */}
-          <div className="rounded border border-[#c3c4c7] bg-white px-4 py-3 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-col lg:gap-0 lg:space-y-4">
+          {/* Daily digest — assignments and open blockages, counted from
+              the loaded messages only. */}
+          <div className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
               Today&apos;s digest
             </p>
-            <ul className="mt-1 space-y-0.5 text-[13px] text-[#1d2327]">
-              <li>Assignments today: {digest.assignmentsToday.length}</li>
-              <li>Open blockages: {digest.blockagesOpen.length}</li>
-              <li>Drafts pending owner verification: {pendingDrafts.length}</li>
-            </ul>
-            {pendingDrafts.length > 0 ? (
-              <ul className="mt-2 space-y-1">
-                {pendingDrafts.map((draft) => (
-                  <li key={draft.id}>
-                    <a
-                      href={`/admin/blog/${draft.slug}`}
-                      className="text-[13px] font-medium text-[#2271b1] hover:underline"
-                    >
-                      {draft.title || '(Untitled draft)'}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-[13px] text-[#646970]">No drafts pending verification.</p>
-            )}
+            <dl className="mt-2 space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-[13px] text-[#646970]">Assignments today</dt>
+                <dd className="text-lg font-bold leading-none text-[#1d2327]">{digest.assignmentsToday.length}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-[13px] text-[#646970]">Open blockages</dt>
+                <dd className="text-lg font-bold leading-none text-[#1d2327]">{digest.blockagesOpen.length}</dd>
+              </div>
+            </dl>
           </div>
 
           {/* Leaderboard — the latest /score post, parsed; never invented. */}
-          <div className="rounded border border-[#c3c4c7] bg-white px-4 py-3 shadow-sm">
+          <div className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#646970]">
               Leaderboard
             </p>
             {leaderboardScores ? (
-              <p className="mt-1 text-[13px] text-[#1d2327]">
-                {leaderboardScores.lane1 && (
-                  <span>
-                    Lane 1: {leaderboardScores.lane1.points} points
-                    {leaderboardScores.lane1.rank ? ` (Rank ${leaderboardScores.lane1.rank})` : ''}
-                  </span>
-                )}
-                {leaderboardScores.lane1 && leaderboardScores.lane2 && <span className="mx-2 text-[#8c8f94]">|</span>}
-                {leaderboardScores.lane2 && (
-                  <span>
-                    Lane 2: {leaderboardScores.lane2.points} points
-                    {leaderboardScores.lane2.rank ? ` (Rank ${leaderboardScores.lane2.rank})` : ''}
-                  </span>
-                )}
-              </p>
+              <ul className="mt-2 space-y-1.5">
+                {[
+                  { label: 'Lane 1', score: leaderboardScores.lane1, email: 'abdulqudoos4473988@gmail.com' },
+                  { label: 'Lane 2', score: leaderboardScores.lane2, email: 'abdulqudoos5374@gmail.com' },
+                ].filter((row) => row.score).map((row) => (
+                  <li key={row.label} className="flex items-center gap-2 text-[13px]">
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${avatarColorFor(row.email)}`} aria-hidden="true" />
+                    <span className="font-medium text-[#1d2327]">{row.label}</span>
+                    <span className="ml-auto font-bold text-[#1d2327]">{row.score.points} pts</span>
+                    {row.score.rank ? (
+                      <span className="rounded-full bg-[#f0f0f1] px-2 py-0.5 text-[11px] font-semibold text-[#646970]">
+                        Rank {row.score.rank}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
             ) : latestScorePost ? (
               <p className="mt-1 whitespace-pre-wrap break-words text-[13px] text-[#1d2327]">
                 {latestScorePost.body.replace(LEADERBOARD_PREFIX, '').trim()}
