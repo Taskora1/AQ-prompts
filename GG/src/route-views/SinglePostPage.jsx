@@ -27,7 +27,7 @@ import { useCopyGate } from '../components/CopyGate';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { formatStableDate } from '../lib/utils';
-import { sanitizeBlogBlocks, enhancePromptBlocks } from '../lib/blog-content';
+import { sanitizeBlogBlocks, enhancePromptBlocks, convertInlineFaqToAccordion } from '../lib/blog-content';
 import { isAuditedNoIndexPromptSlug } from '../lib/content-indexing-policy';
 import { BLOG_POST_COVER_SIZES, getBlogPostCoverImage } from '../lib/article';
 
@@ -157,71 +157,6 @@ function dropRedundantTableColumns(html = '') {
 
     return tableMatch.replace(tableInner, result);
   });
-}
-
-// Shared accordion markup for a list of [question, answers] pairs.
-function faqPairsToAccordion(pairs) {
-  return `<div class="article-faq-list">${pairs
-    .map(
-      ([, question, answers]) =>
-        `<details class="article-faq-item"><summary class="article-faq-question"><span>${question.trim()}</span><span class="article-faq-chevron" aria-hidden="true">›</span></summary><div class="article-faq-answer">${answers.trim()}</div></details>`,
-    )
-    .join('')}</div>`;
-}
-
-// Turn an in-body FAQ section (h2 "Frequently Asked Questions" followed
-// by h3 questions with paragraph answers) into a <details> accordion.
-// Wording is unchanged; only the markup changes. The h2 gets the
-// common-questions id so the "Jump to FAQ" link still lands on it.
-// The FAQ block form (<div class="faq-block">…) is handled the same way:
-// the whole div is replaced by the heading + accordion.
-function convertInlineFaqToAccordion(html = '') {
-  const source = String(html || '');
-
-  const faqBlockMatch = source.match(/<div\b[^>]*\bfaq-block\b[^>]*>([\s\S]*?)<\/div>/i);
-  if (faqBlockMatch) {
-    const pairs = [...faqBlockMatch[1].matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>\s*((?:<p\b[^>]*>[\s\S]*?<\/p>\s*)+)/gi)];
-    if (pairs.length === 0) {
-      // Empty FAQ block — nothing to show.
-      return source.slice(0, faqBlockMatch.index) + source.slice(faqBlockMatch.index + faqBlockMatch[0].length);
-    }
-    const heading = '<h2 id="common-questions">Frequently Asked Questions</h2>';
-    return (
-      source.slice(0, faqBlockMatch.index)
-      + heading
-      + faqPairsToAccordion(pairs)
-      + source.slice(faqBlockMatch.index + faqBlockMatch[0].length)
-    );
-  }
-
-  const headingPattern = /<h2\b([^>]*)>([\s\S]*?)<\/h2>/gi;
-  let headingMatch;
-  let faqHeading = null;
-
-  while ((headingMatch = headingPattern.exec(source)) !== null) {
-    if (/frequently asked questions/i.test(textFromHtml(headingMatch[2]))) {
-      faqHeading = headingMatch;
-      break;
-    }
-  }
-  if (!faqHeading) return source;
-
-  const headingEnd = faqHeading.index + faqHeading[0].length;
-  const nextHeadingIndex = source.slice(headingEnd).search(/<h2\b/i);
-  const sectionEnd = nextHeadingIndex < 0 ? source.length : headingEnd + nextHeadingIndex;
-  const section = source.slice(headingEnd, sectionEnd);
-
-  const pairs = [...section.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>\s*((?:<p\b[^>]*>[\s\S]*?<\/p>\s*)+)/gi)];
-  if (pairs.length === 0) return source;
-
-  const accordion = faqPairsToAccordion(pairs);
-
-  const headingAttrs = faqHeading[1] || '';
-  const headingWithId = /id\s*=/.test(headingAttrs)
-    ? faqHeading[0]
-    : faqHeading[0].replace(/^<h2\b/i, '<h2 id="common-questions"');
-
-  return `${source.slice(0, faqHeading.index)}${headingWithId}${accordion}${source.slice(sectionEnd)}`;
 }
 
 // Post-page-only style overrides. globals.css is owned by the parallel
