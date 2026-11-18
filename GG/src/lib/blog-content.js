@@ -191,9 +191,14 @@ export function enhancePromptBlocks(html = '') {
         return `<div class="article-code-shell"><button type="button" class="article-copy-button" data-copy-code aria-label="${escapeHtml(label)}">${escapeHtml(label)}</button><pre${preAttrs}><code${codeAttrs}>${codeHtml}</code></pre></div>`;
       }
 
-      promptIndex += 1;
+      // "Prompt N" is only a fallback title for a block with no title of
+      // its own. A block that already carries a data-title (for example
+      // the "Quick Start Prompt" intro block at the top of a post) must
+      // not consume a fallback number, or every untitled block after it
+      // is numbered one too high (Prompt 2-6 under headings 1-5).
       const titleMatch = String(preAttrs || '').match(/data-title=["']([^"']*)["']/i);
       const dataTitle = titleMatch ? decodeHtmlEntities(titleMatch[1]).trim() : '';
+      if (!dataTitle) promptIndex += 1;
       const heading = [...headings].reverse().find((item) => item.index < offset);
       const title = dataTitle || heading?.title || `Prompt ${promptIndex}`;
       const bestFor = heading?.bestFor || '';

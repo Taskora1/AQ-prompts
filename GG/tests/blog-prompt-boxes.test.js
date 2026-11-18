@@ -105,3 +105,25 @@ test('empty input stays empty and non-prompt HTML passes through', () => {
   assert.equal(enhancePromptBlocks(''), '');
   assert.equal(enhancePromptBlocks('<p>Hello</p>'), '<p>Hello</p>');
 });
+
+// Regression test for the Elegant post (2026-11-18): the intro "Quick
+// Start Prompt" block is a titled block, so it must not consume the
+// fallback number — the five untitled blocks under the "Prompt N:"
+// headings number Prompt 1-5, not Prompt 2-6. "Prompt N:" headings are
+// not numbered headings for title purposes, so the fallback applies.
+const QUICK_START_SHAPED = [
+  '<h2>In This Guide</h2>',
+  '<pre class="prompt-block" data-title="Quick Start Prompt"><code>Quick start prompt text.</code></pre>',
+  '<h2>Prompt 1: The First Portrait</h2>',
+  '<pre class="prompt-block" data-title=""><code>First prompt text.</code></pre>',
+  '<h2>Prompt 2: The Second Portrait</h2>',
+  '<pre class="prompt-block" data-title=""><code>Second prompt text.</code></pre>',
+  '<h2>Prompt 3: The Third Portrait</h2>',
+  '<pre class="prompt-block" data-title=""><code>Third prompt text.</code></pre>',
+].join('');
+
+test('a titled Quick Start block does not consume a fallback prompt number', () => {
+  const out = enhancePromptBlocks(QUICK_START_SHAPED);
+  const titles = [...out.matchAll(/<h3 class="article-prompt-title">([^<]*)<\/h3>/g)].map((m) => m[1]);
+  assert.deepEqual(titles, ['Quick Start Prompt', 'Prompt 1', 'Prompt 2', 'Prompt 3']);
+});
